@@ -39,7 +39,7 @@ Build the project:
 bash
 Kodu kopyala
 dotnet build
-🖥️ Usage
+##🖥️ Usage
 Run the application:
 bash
 Kodu kopyala
@@ -47,12 +47,12 @@ dotnet run
 Connect your MAVLink-compatible device.
 The messages will appear in the tree view organized by System ID, Component ID, and Message ID.
 Enable Show GCS Traffic to view messages sent by the Ground Control Station.
-📂 Project Structure
+##📂 Project Structure
 /MavlinkInspector/: Main application code.
 /MavlinkInspector/ViewModels/: ViewModel layer for MVVM architecture.
 /MavlinkInspector/Views/: XAML views for the WPF interface.
 /MavlinkInspector/Utilities/: Helper classes for MAVLink message parsing and processing.
-🤝 Contributing
+##🤝 Contributing
 Contributions are welcome! Please follow these steps:
 
 Fork the repository.
@@ -69,16 +69,16 @@ bash
 Kodu kopyala
 git push origin feature-branch-name
 Create a pull request.
-🛠️ Built With
+##🛠️ Built With
 C# - Core programming language
 WPF - Windows Presentation Foundation for UI
 MAVLink.NET - MAVLink protocol implementation for .NET
 MVVM - Architectural pattern
-📜 License
+##📜 License
 This project is licensed under the MIT License. See the LICENSE file for details.
 
-🌟 Acknowledgments
+##🌟 Acknowledgments
 Inspired by MissionPlanner.
 Thanks to the MAVLink team for the protocol and documentation.
-🔗 Repository Link
+###🔗 Repository Link
 https://github.com/enescankaya/MAVLINK-INSPECTOR
