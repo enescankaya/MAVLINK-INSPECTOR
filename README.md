@@ -27,3 +27,16 @@ To run this project, you will need:
 1. Clone the repository:
    ```bash
    git clone https://github.com/enescankaya/MAVLINK-INSPECTOR.git
+- Built With
+- C# - Core programming language
+- WPF - Windows Presentation Foundation for the UI
+- MAVLink.NET - MAVLink protocol implementation for .NET
+- MVVM - Model-View-ViewModel architecture pattern
+- License
+- This project is licensed under the MIT License. See the LICENSE file for more details.
+
+### Acknowledgments
+Inspired by MissionPlanner.
+Thanks to the MAVLink team for the protocol and documentation.
+Repository Link
+https://github.com/enescankaya/MAVLINK-INSPECTOR
