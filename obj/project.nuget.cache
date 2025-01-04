@@ -1,0 +1,28 @@
+{
+  "version": 2,
+  "dgSpecHash": "e1fPJMOUSgSB5PYql19Z01EZ4bToHl1XIgbc5JwT5rfNNnIB7sP/pmC/jh2ACFn71ELXQ0AalUjPgZP6tB4tRQ==",
+  "success": true,
+  "projectFilePath": "C:\\Users\\PC_6270\\Desktop\\Enes\\MavlinkInspecter\\MainProject\\MavlinkInspector\\MavlinkInspector\\MavlinkInspector.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\PC_6270\\.nuget\\packages\\runtime.any.system.io\\4.1.0\\runtime.any.system.io.4.1.0.nupkg.sha512",
+    "C:\\Users\\PC_6270\\.nuget\\packages\\runtime.linux-arm.runtime.native.system.io.ports\\8.0.0\\runtime.linux-arm.runtime.native.system.io.ports.8.0.0.nupkg.sha512",
+    "C:\\Users\\PC_6270\\.nuget\\packages\\runtime.linux-arm64.runtime.native.system.io.ports\\8.0.0\\runtime.linux-arm64.runtime.native.system.io.ports.8.0.0.nupkg.sha512",
+    "C:\\Users\\PC_6270\\.nuget\\packages\\runtime.linux-x64.runtime.native.system.io.ports\\8.0.0\\runtime.linux-x64.runtime.native.system.io.ports.8.0.0.nupkg.sha512",
+    "C:\\Users\\PC_6270\\.nuget\\packages\\runtime.native.system.io.ports\\8.0.0\\runtime.native.system.io.ports.8.0.0.nupkg.sha512",
+    "C:\\Users\\PC_6270\\.nuget\\packages\\runtime.osx-arm64.runtime.native.system.io.ports\\8.0.0\\runtime.osx-arm64.runtime.native.system.io.ports.8.0.0.nupkg.sha512",
+    "C:\\Users\\PC_6270\\.nuget\\packages\\runtime.osx-x64.runtime.native.system.io.ports\\8.0.0\\runtime.osx-x64.runtime.native.system.io.ports.8.0.0.nupkg.sha512",
+    "C:\\Users\\PC_6270\\.nuget\\packages\\system.io.ports\\8.0.0\\system.io.ports.8.0.0.nupkg.sha512"
+  ],
+  "logs": [
+    {
+      "code": "NU1603",
+      "level": "Warning",
+      "warningLevel": 1,
+      "message": "MavlinkInspector, System.IO.Ports (>= 7.0.0) öğesine bağımlı ancak System.IO.Ports 7.0.0 bulunamadı. Yaklaşık bir en iyi eşleşme olan System.IO.Ports 8.0.0 çözümlendi.",
+      "libraryId": "System.IO.Ports",
+      "targetGraphs": [
+        "net8.0-windows7.0"
+      ]
+    }
+  ]
+}
