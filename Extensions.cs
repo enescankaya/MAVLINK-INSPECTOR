@@ -52,15 +52,18 @@ public static class Extensions
 
         var treeSymbol = new TextBlock
         {
-            Text = "🌳 ",  // Tree symbol
+            Text = "-> ",  // Daha basit tree sembolü
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 5, 0)
+            FontFamily = new System.Windows.Media.FontFamily("Consolas"),
+            Margin = new Thickness(0, 0, 5, 0),
+            Width = 15 // Sabit genişlik
         };
 
         var textBlock = new TextBlock
         {
             Text = text,
-            VerticalAlignment = VerticalAlignment.Center
+            VerticalAlignment = VerticalAlignment.Center,
+            FontFamily = new System.Windows.Media.FontFamily("Consolas")
         };
 
         stackPanel.Children.Add(treeSymbol);
@@ -72,20 +75,30 @@ public static class Extensions
     public static void UpdateMessageDetails(this TextBox textBox, MAVLink.MAVLinkMessage message)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"Message Type: {message.msgtypename}");
-        sb.AppendLine($"System ID: {message.sysid}");
-        sb.AppendLine($"Component ID: {message.compid}");
-        sb.AppendLine($"Message ID: {message.msgid}");
-        sb.AppendLine($"Length: {message.Length} bytes");
+        // Header bilgileri
+        sb.AppendLine($"{"Message Type:",-20} {message.msgtypename}");
+        sb.AppendLine($"{"System ID:",-20} {message.sysid}");
+        sb.AppendLine($"{"Component ID:",-20} {message.compid}");
+        sb.AppendLine($"{"Message ID:",-20} {message.msgid}");
+        sb.AppendLine($"{"Length:",-20} {message.Length} bytes");
         sb.AppendLine();
 
         var messageInfo = MAVLink.MAVLINK_MESSAGE_INFOS.GetMessageInfo(message.msgid);
         if (messageInfo.type != null)
         {
-            foreach (var field in messageInfo.type.GetFields())
+            // En uzun field ismini ve değeri bul
+            var fields = messageInfo.type.GetFields();
+            int maxNameLength = fields.Max(f => f.Name.Length);
+            int maxValueLength = 15; // Sabit değer genişliği
+
+            foreach (var field in fields)
             {
-                var value = field.GetValue(message.data);
-                sb.AppendLine($"{field.Name}: {FormatFieldValue(value)}");
+                var value = field.GetValue(message.data)?.ToString() ?? "null";
+                var typeName = field.FieldType.Name;
+
+                // Format: FieldName     Value          Type
+                //         |<-name->|<---value--->|<---type--->|
+                sb.AppendLine($"{field.Name.PadRight(maxNameLength)}    {value.PadLeft(maxValueLength)}    {typeName,-12}");
             }
         }
 

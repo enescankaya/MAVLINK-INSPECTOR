@@ -10,16 +10,21 @@ public class UdpConnection : IConnection
     private UdpClient? _client;
     private readonly Channel<byte[]> _dataChannel;
     private CancellationTokenSource? _readCts;
-    private bool _isDisposed;
+    private volatile bool _isDisposed;
+    private readonly SemaphoreSlim _connectionLock = new(1, 1);
 
     public bool IsConnected => _client != null;
+    public bool IsDisposed => _isDisposed; // IConnection interface için eklendi
     public ChannelReader<byte[]> DataChannel => _dataChannel.Reader;
 
     public UdpConnection(string host, int port)
     {
         _host = host;
         _port = port;
-        _dataChannel = Channel.CreateUnbounded<byte[]>();
+        _dataChannel = Channel.CreateBounded<byte[]>(new BoundedChannelOptions(1000)
+        {
+            FullMode = BoundedChannelFullMode.DropOldest
+        });
     }
 
     public Task ConnectAsync(CancellationToken cancellationToken = default)
@@ -49,12 +54,21 @@ public class UdpConnection : IConnection
         }
     }
 
-    public Task DisconnectAsync()
+    public async Task DisconnectAsync()
     {
-        _readCts?.Cancel();
-        _client?.Dispose();
-        _client = null;
-        return Task.CompletedTask;
+        await _connectionLock.WaitAsync();
+        try
+        {
+            _readCts?.Cancel();
+            _client?.Dispose();
+            _client = null;
+            // CompleteAsync yerine TryComplete kullan
+            _dataChannel.Writer.TryComplete();
+        }
+        finally
+        {
+            _connectionLock.Release();
+        }
     }
 
     public async Task SendAsync(byte[] data, CancellationToken cancellationToken = default)

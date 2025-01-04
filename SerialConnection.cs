@@ -8,9 +8,12 @@ public class SerialConnection : IConnection
 {
     private readonly SerialPort _port;
     private readonly Channel<byte[]> _dataChannel;
-    private bool _isDisposed;
+    private readonly byte[] _readBuffer = new byte[4096];
+    private volatile bool _isDisposed;
+    private readonly SemaphoreSlim _connectionLock = new(1, 1);
 
     public bool IsConnected => _port?.IsOpen ?? false;
+    public bool IsDisposed => _isDisposed;
     public ChannelReader<byte[]> DataChannel => _dataChannel.Reader;
 
     public SerialConnection(string portName, int baudRate)
@@ -18,70 +21,107 @@ public class SerialConnection : IConnection
         _port = new SerialPort(portName, baudRate)
         {
             ReadTimeout = 500,
-            WriteTimeout = 500
+            WriteTimeout = 500,
+            ReadBufferSize = 4096,
+            WriteBufferSize = 4096
         };
-        _dataChannel = Channel.CreateUnbounded<byte[]>();
+        _dataChannel = Channel.CreateBounded<byte[]>(new BoundedChannelOptions(1000)
+        {
+            FullMode = BoundedChannelFullMode.DropOldest
+        });
     }
 
-    public Task ConnectAsync(CancellationToken cancellationToken = default)
+    public async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
-        _port.DataReceived += Port_DataReceived;
-        _port.Open();
-        return Task.CompletedTask;
+        await _connectionLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (IsDisposed || IsConnected) return;
+
+            _port.DataReceived += Port_DataReceived;
+            _port.ErrorReceived += Port_ErrorReceived;
+            _port.Open();
+        }
+        finally
+        {
+            _connectionLock.Release();
+        }
     }
 
     private void Port_DataReceived(object sender, SerialDataReceivedEventArgs e)
     {
+        if (_isDisposed || !IsConnected) return;
+
         try
         {
-            Thread.Sleep(10); // Reduced sleep time
             var bytesToRead = _port.BytesToRead;
-            if (bytesToRead > 0)
+            if (bytesToRead <= 0) return;
+
+            lock (_readBuffer)
             {
-                var buffer = new byte[bytesToRead];
-                var bytesRead = _port.Read(buffer, 0, bytesToRead);
+                var bytesRead = _port.Read(_readBuffer, 0, Math.Min(bytesToRead, _readBuffer.Length));
                 if (bytesRead > 0)
                 {
-                    Debug.WriteLine($"Serial received {bytesRead} bytes");
                     var data = new byte[bytesRead];
-                    Array.Copy(buffer, data, bytesRead);
-                    if (!_dataChannel.Writer.TryWrite(data))
-                    {
-                        Debug.WriteLine("Failed to write to channel");
-                    }
+                    Buffer.BlockCopy(_readBuffer, 0, data, 0, bytesRead);
+                    _dataChannel.Writer.TryWrite(data);
                 }
             }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Serial port read error: {ex.Message}");
+            Debug.WriteLine($"Serial read error: {ex.Message}");
         }
     }
 
-    public Task DisconnectAsync()
+    private void Port_ErrorReceived(object sender, SerialErrorReceivedEventArgs e)
     {
-        if (_port?.IsOpen == true)
+        Debug.WriteLine($"Serial error: {e.EventType}");
+        _ = DisconnectAsync();
+    }
+
+    public async Task DisconnectAsync()
+    {
+        await _connectionLock.WaitAsync();
+        try
         {
+            if (!IsConnected) return;
+
             _port.DataReceived -= Port_DataReceived;
+            _port.ErrorReceived -= Port_ErrorReceived;
             _port.Close();
+            // CompleteAsync yerine TryComplete kullan
+            _dataChannel.Writer.TryComplete();
         }
-        return Task.CompletedTask;
+        finally
+        {
+            _connectionLock.Release();
+        }
     }
 
-    public Task SendAsync(byte[] data, CancellationToken cancellationToken = default)
+    public async Task SendAsync(byte[] data, CancellationToken cancellationToken = default)
     {
-        if (_port?.IsOpen == true)
+        if (_isDisposed || !IsConnected) return;
+
+        await _connectionLock.WaitAsync(cancellationToken);
+        try
         {
-            _port.Write(data, 0, data.Length);
+            await _port.BaseStream.WriteAsync(data, cancellationToken);
+            await _port.BaseStream.FlushAsync(cancellationToken);
         }
-        return Task.CompletedTask;
+        finally
+        {
+            _connectionLock.Release();
+        }
     }
 
     public async ValueTask DisposeAsync()
     {
         if (_isDisposed) return;
+        _isDisposed = true;
+
         await DisconnectAsync();
         _port?.Dispose();
-        _isDisposed = true;
+        _connectionLock.Dispose();
     }
 }

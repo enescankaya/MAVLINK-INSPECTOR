@@ -4,28 +4,24 @@ namespace MavlinkInspector
 {
     public class PacketInspector<T>
     {
-        private readonly ConcurrentDictionary<uint, ConcurrentDictionary<uint, T>> _history =
-            new ConcurrentDictionary<uint, ConcurrentDictionary<uint, T>>();
-        private readonly ConcurrentDictionary<uint, ConcurrentDictionary<uint, ConcurrentQueue<PacketRate>>> _rate =
-            new ConcurrentDictionary<uint, ConcurrentDictionary<uint, ConcurrentQueue<PacketRate>>>();
-        private readonly ConcurrentDictionary<uint, ConcurrentDictionary<uint, ConcurrentQueue<PacketRate>>> _bps =
-            new ConcurrentDictionary<uint, ConcurrentDictionary<uint, ConcurrentQueue<PacketRate>>>();
+        private readonly ConcurrentDictionary<uint, ConcurrentDictionary<uint, T>> _history = new();
+        private readonly ConcurrentDictionary<uint, ConcurrentDictionary<uint, List<irate>>> _rate = new();
+        private readonly ConcurrentDictionary<uint, ConcurrentDictionary<uint, List<irate>>> _bps = new();
 
-        private const int MAX_HISTORY_TIME_MS = 3000; // 3 saniye geçmişi tut
-        private const int MAVLINK_HEADER_SIZE = 8; // MAVLink v1 header (6) + CRC (2)
-
+        private const int MAX_HISTORY_TIME_MS = 3000;
+        public int RateHistory { get; set; } = 200;
         private readonly object _lock = new object();
         public event EventHandler NewSysidCompid;
 
-        private struct PacketRate
+        private struct irate
         {
-            public DateTime Timestamp { get; }
-            public int Value { get; }
+            public DateTime dateTime { get; }
+            public int value { get; }
 
-            public PacketRate(DateTime timestamp, int value)
+            public irate(DateTime dateTime, int value)
             {
-                Timestamp = timestamp;
-                Value = value;
+                this.dateTime = dateTime;
+                this.value = value;
             }
         }
 
@@ -41,75 +37,85 @@ namespace MavlinkInspector
 
         public double GetMessageRate(byte sysid, byte compid, uint msgid)
         {
-            var id = GetID(sysid, compid);
-            var now = DateTime.UtcNow;
-            var cutoff = now.AddMilliseconds(-MAX_HISTORY_TIME_MS);
+            return SeenRate(sysid, compid, msgid);
+        }
 
-            if (!_rate.TryGetValue(id, out var rates) || !rates.TryGetValue(msgid, out var queue))
-                return 0;
+        public double SeenRate(byte sysid, byte compid, uint msgid)
+        {
+            var id = GetID(sysid, compid);
+            var end = DateTime.Now;
+            var start = end.AddSeconds(-3);
 
             lock (_lock)
             {
-                var packets = queue.Where(p => p.Timestamp >= cutoff).ToList();
-                if (!packets.Any())
+                if (!_rate.TryGetValue(id, out var rates) || !rates.TryGetValue(msgid, out var data))
                     return 0;
 
-                var timeSpan = (now - packets.Min(p => p.Timestamp)).TotalSeconds;
-                if (timeSpan <= 0)
+                try
+                {
+                    var starttime = data.First().dateTime;
+                    starttime = starttime < start ? start : starttime;
+                    var msgrate = data.Where(a => a.dateTime > start && a.dateTime < end)
+                                    .Sum(a => a.value / (end - starttime).TotalSeconds);
+                    return msgrate;
+                }
+                catch
+                {
                     return 0;
-
-                return packets.Count / timeSpan; // Paket sayısı / zaman = Hz
+                }
             }
         }
 
         public double GetBps(byte sysid, byte compid, uint msgid)
         {
             var id = GetID(sysid, compid);
-            var now = DateTime.UtcNow;
-            var cutoff = now.AddMilliseconds(-MAX_HISTORY_TIME_MS);
-
-            if (!_bps.TryGetValue(id, out var rates) || !rates.TryGetValue(msgid, out var queue))
-                return 0;
+            var end = DateTime.Now;
+            var start = end.AddSeconds(-3);
 
             lock (_lock)
             {
-                var packets = queue.Where(p => p.Timestamp >= cutoff).ToList();
-                if (!packets.Any())
+                if (!_bps.TryGetValue(id, out var rates) || !rates.TryGetValue(msgid, out var data))
                     return 0;
 
-                var timeSpan = (now - packets.Min(p => p.Timestamp)).TotalSeconds;
-                if (timeSpan <= 0)
+                try
+                {
+                    var starttime = data.First().dateTime;
+                    starttime = starttime < start ? start : starttime;
+                    var msgbps = data.Where(a => a.dateTime > start && a.dateTime < end)
+                                    .Sum(a => a.value / (end - starttime).TotalSeconds);
+                    return msgbps * 8; // Convert to bits
+                }
+                catch
+                {
                     return 0;
-
-                var totalBits = packets.Sum(p => p.Value * 8); // Byte'ları bite çevir
-                return totalBits / timeSpan; // Toplam bit / zaman = bps
+                }
             }
         }
 
         public double GetBps(byte sysid, byte compid)
         {
             var id = GetID(sysid, compid);
-            var now = DateTime.UtcNow;
-            var cutoff = now.AddMilliseconds(-MAX_HISTORY_TIME_MS);
-
-            if (!_bps.TryGetValue(id, out var rates))
-                return 0;
+            var end = DateTime.Now;
+            var start = end.AddSeconds(-3);
 
             lock (_lock)
             {
-                var allPackets = rates.Values
-                    .SelectMany(q => q.Where(p => p.Timestamp >= cutoff))
-                    .ToList();
-
-                if (!allPackets.Any())
+                if (!_bps.TryGetValue(id, out var rates))
                     return 0;
 
-                var timeSpan = (now - allPackets.Min(p => p.Timestamp)).TotalSeconds;
-                if (timeSpan <= 0)
+                try
+                {
+                    var data = rates.Values.SelectMany(list => list).ToList();
+                    var starttime = data.First().dateTime;
+                    starttime = starttime < start ? start : starttime;
+                    var msgbps = data.Where(a => a.dateTime > start && a.dateTime < end)
+                                    .Sum(a => a.value / (end - starttime).TotalSeconds);
+                    return msgbps * 8; // Convert to bits
+                }
+                catch
+                {
                     return 0;
-
-                var totalBits = allPackets.Sum(p => p.Value * 8);
-                return totalBits / timeSpan;
+                }
             }
         }
 
@@ -125,13 +131,13 @@ namespace MavlinkInspector
             lock (_lock)
             {
                 var allPackets = rates.Values
-                    .SelectMany(q => q.Where(p => p.Timestamp >= cutoff))
+                    .SelectMany(q => q.Where(p => p.dateTime >= cutoff))
                     .ToList();
 
                 if (!allPackets.Any())
                     return 0;
 
-                var timeSpan = (now - allPackets.Min(p => p.Timestamp)).TotalSeconds;
+                var timeSpan = (now - allPackets.Min(p => p.dateTime)).TotalSeconds;
                 if (timeSpan <= 0)
                     return 0;
 
@@ -142,34 +148,43 @@ namespace MavlinkInspector
         public void Add(byte sysid, byte compid, uint msgid, T message, int size)
         {
             var id = GetID(sysid, compid);
-            var now = DateTime.UtcNow;
+            var now = DateTime.Now;
 
-            // Ana sözlükleri başlat
-            _history.GetOrAdd(id, _ => new ConcurrentDictionary<uint, T>());
-            _rate.GetOrAdd(id, _ => new ConcurrentDictionary<uint, ConcurrentQueue<PacketRate>>());
-            _bps.GetOrAdd(id, _ => new ConcurrentDictionary<uint, ConcurrentQueue<PacketRate>>());
+            lock (_lock)
+            {
+                // Initialize dictionaries for new ID
+                if (!_history.ContainsKey(id))
+                    Clear(sysid, compid);
 
-            // Mesaj geçmişini güncelle
-            _history[id][msgid] = message;
+                // Update message history
+                _history.GetOrAdd(id, _ => new ConcurrentDictionary<uint, T>())[msgid] = message;
 
-            // Hız takibi için kuyruk
-            var rateQueue = _rate[id].GetOrAdd(msgid, _ => new ConcurrentQueue<PacketRate>());
-            rateQueue.Enqueue(new PacketRate(now, 1));
-            CleanupQueue(rateQueue, now);
+                // Update rate tracking
+                var rateDict = _rate.GetOrAdd(id, _ => new ConcurrentDictionary<uint, List<irate>>());
+                if (!rateDict.ContainsKey(msgid))
+                    rateDict[msgid] = new List<irate>();
+                rateDict[msgid].Add(new irate(now, 1));
 
-            // Bant genişliği takibi için kuyruk (header dahil toplam boyut)
-            var totalSize = size + MAVLINK_HEADER_SIZE;
-            var bpsQueue = _bps[id].GetOrAdd(msgid, _ => new ConcurrentQueue<PacketRate>());
-            bpsQueue.Enqueue(new PacketRate(now, totalSize));
-            CleanupQueue(bpsQueue, now);
+                // Update bandwidth tracking
+                var bpsDict = _bps.GetOrAdd(id, _ => new ConcurrentDictionary<uint, List<irate>>());
+                if (!bpsDict.ContainsKey(msgid))
+                    bpsDict[msgid] = new List<irate>();
+                bpsDict[msgid].Add(new irate(now, size + 8)); // Include MAVLink overhead
+
+                // Cleanup old entries
+                while (rateDict[msgid].Count > RateHistory)
+                    rateDict[msgid].RemoveAt(0);
+                while (bpsDict[msgid].Count > RateHistory)
+                    bpsDict[msgid].RemoveAt(0);
+            }
 
             NewSysidCompid?.Invoke(this, EventArgs.Empty);
         }
 
-        private void CleanupQueue(ConcurrentQueue<PacketRate> queue, DateTime now)
+        private void CleanupQueue(ConcurrentQueue<irate> queue, DateTime now)
         {
             while (queue.TryPeek(out var oldest) &&
-                   (now - oldest.Timestamp).TotalMilliseconds > MAX_HISTORY_TIME_MS)
+                   (now - oldest.dateTime).TotalMilliseconds > MAX_HISTORY_TIME_MS)
             {
                 queue.TryDequeue(out _);
             }
@@ -193,27 +208,42 @@ namespace MavlinkInspector
         {
             lock (_lock)
             {
-                foreach (var id in _history.Keys)
-                {
-                    _history[id].Clear();
-                    _rate[id].Clear();
-                    _bps[id].Clear();
-                }
+                // Dictionary'leri yeniden oluşturmak yerine içeriklerini temizle
+                foreach (var dict in _history.Values)
+                    dict.Clear();
+
+                foreach (var dict in _rate.Values)
+                    dict.Clear();
+
+                foreach (var dict in _bps.Values)
+                    dict.Clear();
+
+                // Ana dictionary yapılarını koru
+                // Yeni mesajlar geldiğinde kullanılacak
             }
+
+            // Event'i tetikle ama null ile değil
             NewSysidCompid?.Invoke(this, EventArgs.Empty);
         }
 
         public void Clear(byte sysid, byte compid)
         {
             var id = GetID(sysid, compid);
+            lock (_lock)
+            {
+                // Ana dictionary'leri oluştur (yoksa)
+                _history.GetOrAdd(id, _ => new ConcurrentDictionary<uint, T>());
+                _rate.GetOrAdd(id, _ => new ConcurrentDictionary<uint, List<irate>>());
+                _bps.GetOrAdd(id, _ => new ConcurrentDictionary<uint, List<irate>>());
 
-            if (_history.TryGetValue(id, out var history))
-                history.Clear();
-            if (_rate.TryGetValue(id, out var rate))
-                rate.Clear();
-            if (_bps.TryGetValue(id, out var bps))
-                bps.Clear();
-
+                // İçerikleri temizle
+                if (_history.TryGetValue(id, out var history))
+                    history.Clear();
+                if (_rate.TryGetValue(id, out var rate))
+                    rate.Clear();
+                if (_bps.TryGetValue(id, out var bps))
+                    bps.Clear();
+            }
             NewSysidCompid?.Invoke(this, EventArgs.Empty);
         }
 

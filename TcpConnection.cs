@@ -10,75 +10,114 @@ public class TcpConnection : IConnection
     private TcpClient? _client;
     private NetworkStream? _stream;
     private readonly Channel<byte[]> _dataChannel;
+    private readonly byte[] _readBuffer = new byte[4096];
     private CancellationTokenSource? _readCts;
-    private bool _isDisposed;
+    private volatile bool _isDisposed;
+    private readonly SemaphoreSlim _connectionLock = new(1, 1);
 
     public bool IsConnected => _client?.Connected ?? false;
+    public bool IsDisposed => _isDisposed;
     public ChannelReader<byte[]> DataChannel => _dataChannel.Reader;
 
     public TcpConnection(string host, int port)
     {
         _host = host;
         _port = port;
-        _dataChannel = Channel.CreateUnbounded<byte[]>();
+        _dataChannel = Channel.CreateBounded<byte[]>(new BoundedChannelOptions(1000)
+        {
+            FullMode = BoundedChannelFullMode.DropOldest
+        });
     }
 
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
-        _client = new TcpClient();
-        await _client.ConnectAsync(_host, _port, cancellationToken);
-        _stream = _client.GetStream();
+        await _connectionLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (IsDisposed || IsConnected) return;
 
-        _readCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        _ = ReadLoopAsync(_readCts.Token);
+            _client = new TcpClient();
+            await _client.ConnectAsync(_host, _port, cancellationToken);
+            _stream = _client.GetStream();
+
+            _readCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _ = ReadLoopAsync(_readCts.Token);
+        }
+        finally
+        {
+            _connectionLock.Release();
+        }
     }
 
     private async Task ReadLoopAsync(CancellationToken ct)
     {
-        var buffer = new byte[1024];
-        while (!ct.IsCancellationRequested && IsConnected)
+        try
         {
-            try
+            while (!ct.IsCancellationRequested && IsConnected)
             {
-                var bytesRead = await _stream!.ReadAsync(buffer, ct);
+                var bytesRead = await _stream!.ReadAsync(_readBuffer, ct);
                 if (bytesRead == 0) break;
 
                 var data = new byte[bytesRead];
-                Array.Copy(buffer, data, bytesRead);
+                Buffer.BlockCopy(_readBuffer, 0, data, 0, bytesRead);
                 await _dataChannel.Writer.WriteAsync(data, ct);
             }
-            catch (Exception) when (!ct.IsCancellationRequested)
-            {
-                break;
-            }
+        }
+        catch when (!ct.IsCancellationRequested)
+        {
+            await DisconnectAsync();
+        }
+        finally
+        {
+            _dataChannel.Writer.TryComplete();
         }
     }
 
     public async Task DisconnectAsync()
     {
-        _readCts?.Cancel();
-        if (_stream != null)
+        await _connectionLock.WaitAsync();
+        try
         {
-            await _stream.DisposeAsync();
-            _stream = null;
+            if (!IsConnected) return;
+
+            _readCts?.Cancel();
+            if (_stream != null)
+            {
+                await _stream.DisposeAsync();
+                _stream = null;
+            }
+            _client?.Dispose();
+            _client = null;
         }
-        _client?.Dispose();
-        _client = null;
+        finally
+        {
+            _connectionLock.Release();
+        }
     }
 
     public async Task SendAsync(byte[] data, CancellationToken cancellationToken = default)
     {
-        if (_stream != null && IsConnected)
+        if (_isDisposed || !IsConnected) return;
+
+        await _connectionLock.WaitAsync(cancellationToken);
+        try
         {
-            await _stream.WriteAsync(data, cancellationToken);
+            await _stream!.WriteAsync(data, cancellationToken);
+            await _stream.FlushAsync(cancellationToken);
+        }
+        finally
+        {
+            _connectionLock.Release();
         }
     }
 
     public async ValueTask DisposeAsync()
     {
         if (_isDisposed) return;
+        _isDisposed = true;
+
         await DisconnectAsync();
         _readCts?.Dispose();
-        _isDisposed = true;
+        _connectionLock.Dispose();
     }
 }

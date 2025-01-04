@@ -28,7 +28,7 @@
 
                     <StackPanel Name="NetworkPanel" Orientation="Horizontal" Visibility="Collapsed">
                         <TextBox Width="120" Name="IpAddressTextBox" Margin="5" Text="127.0.0.1"/>
-                        <TextBox Width="80" Name="PortTextBox" Margin="5" Text="14550"/>
+                        <TextBox Width="80" Name="PortTextBox" Margin="5" Text="5762"/>
                     </StackPanel>
 
                     <Button Name="ConnectButton" Content="Connect" Width="80" Margin="5" 
@@ -40,9 +40,8 @@
                 <StackPanel Orientation="Horizontal">
                     <CheckBox Name="ShowGCSTraffic" Content="Show GCS Traffic" Margin="5" 
                          VerticalAlignment="Center"/>
-                    <Button Name="ClearButton" Content="Clear" Width="80" Margin="5" 
-                        Click="ClearButton_Click"/>
-                    <!-- Removed AutoScroll CheckBox -->
+                    <Button Name="ResetButton" Content="Reset" Width="80" Margin="5" 
+                        Click="ResetButton_Click"/>
                 </StackPanel>
             </GroupBox>
         </StackPanel>
@@ -67,8 +66,10 @@
                 <TextBox Name="detailsTextBox" 
                          IsReadOnly="True"
                          FontFamily="Consolas"
+                         FontSize="12"
                          VerticalScrollBarVisibility="Auto"
-                         HorizontalScrollBarVisibility="Auto"/>
+                         HorizontalScrollBarVisibility="Auto"
+                         TextWrapping="NoWrap"/>
             </GroupBox>
         </Grid>
 

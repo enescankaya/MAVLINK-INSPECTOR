@@ -15,16 +15,16 @@ public partial class MainWindow : Window
 {
     private readonly PacketInspector<MAVLink.MAVLinkMessage> _mavInspector = new();
     private readonly DispatcherTimer _timer = new();
-    private readonly Dictionary<uint, Color> _messageColors = new();
+    private Dictionary<uint, Color> _messageColors = new();
     private readonly Random _random = new();
     private ConnectionManager _connectionManager = new();
     private int _totalMessages;
     private DateTime _lastRateUpdate = DateTime.Now;
     private int _messagesSinceLastUpdate;
-    private readonly ConcurrentDictionary<uint, DateTime> _lastUpdateTime = new();
+    private ConcurrentDictionary<uint, DateTime> _lastUpdateTime = new();
     private readonly object _updateLock = new();
     private const int UPDATE_INTERVAL_MS = 100;
-    private readonly ConcurrentDictionary<uint, MessageUpdateInfo> _messageUpdateInfo = new();
+    private ConcurrentDictionary<uint, MessageUpdateInfo> _messageUpdateInfo = new();
     private const int UI_UPDATE_INTERVAL_MS = 100;
     private readonly object _treeUpdateLock = new();
     private MAVLink.MAVLinkMessage? _currentlyDisplayedMessage;
@@ -184,7 +184,7 @@ public partial class MainWindow : Window
                 if (bufferList.Count > 1024 * 16)
                 {
                     bufferList.Clear();
-                }
+                }//--
             }
         }
         catch (Exception ex)
@@ -372,18 +372,60 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ClearButton_Click(object sender, RoutedEventArgs e)
+    private void ResetButton_Click(object sender, RoutedEventArgs e)
     {
-        _mavInspector.Clear();
-        _messageUpdateInfo.Clear();
-        _messageColors.Clear();
-        _lastUpdateTime.Clear();
-        treeView1.Items.Clear();
-        detailsTextBox.Clear();
-        _totalMessages = 0;
-        _messagesSinceLastUpdate = 0;
-        statusMessages.Content = "Messages: 0";
-        statusRate.Content = "Rate: 0 msg/s";
+        try
+        {
+            lock (_treeUpdateLock)
+            {
+                // Geçici olarak yeni mesaj işlemeyi durdur
+                var isConnected = _connectionManager.IsConnected;
+
+                // UI elementlerini temizle
+                Dispatcher.Invoke(() =>
+                {
+                    treeView1.Items.Clear();
+                    detailsTextBox.Clear();
+                    statusMessages.Content = "Messages: 0";
+                    statusRate.Content = "Rate: 0 msg/s";
+                });
+
+                // Sayaçları sıfırla
+                _totalMessages = 0;
+                _messagesSinceLastUpdate = 0;
+                _currentlyDisplayedMessage = null;
+
+                // Collection'ları temizle
+                _messageUpdateInfo.Clear();
+                _messageColors.Clear();
+                _lastUpdateTime.Clear();
+
+                // PacketInspector'ı sıfırla ama yapısını koru
+                _mavInspector.Clear();
+
+                // Eğer bağlantı aktifse, hemen yeni mesajları almaya başla
+                if (isConnected)
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        statusConnection.Content = "Connected - Receiving messages...";
+                    });
+
+                    // Mevcut bağlantıyı koru, mesaj almaya devam et
+                    Debug.WriteLine("Connection active, continuing to receive messages...");
+                }
+
+                Debug.WriteLine("Reset completed - System ready for new messages");
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error during reset: {ex.Message}");
+            MessageBox.Show("Reset operation encountered an error but connection is maintained.",
+                           "Reset Warning",
+                           MessageBoxButton.OK,
+                           MessageBoxImage.Information);
+        }
     }
 
     private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)

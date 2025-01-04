@@ -9,4 +9,5 @@ public interface IConnection : IAsyncDisposable
     Task ConnectAsync(CancellationToken cancellationToken = default);
     Task DisconnectAsync();
     Task SendAsync(byte[] data, CancellationToken cancellationToken = default);
+    bool IsDisposed { get; }  // Yeni property
 }
