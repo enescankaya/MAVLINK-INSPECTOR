@@ -1,4 +1,6 @@
 ﻿using MavlinkInspector.Connections;
+using System.Diagnostics;
+using System.IO;
 using System.Threading.Channels;
 
 namespace MavlinkInspector;
@@ -11,6 +13,10 @@ public class ConnectionManager : IAsyncDisposable
 
     public bool IsConnected => _connection?.IsConnected ?? false;
     public ChannelReader<byte[]> DataChannel => _dataChannel.Reader;
+
+    // Events for message handling
+    public event Action<MAVLink.MAVLinkMessage>? OnMessageReceived;
+    public event Action<MAVLink.MAVLinkMessage>? OnMessageSent;
 
     public ConnectionManager()
     {
@@ -43,11 +49,47 @@ public class ConnectionManager : IAsyncDisposable
             await foreach (var data in _connection.DataChannel.ReadAllAsync(ct))
             {
                 await _dataChannel.Writer.WriteAsync(data, ct);
+
+                // Parse ve process MAVLink mesajı
+                if (data.Length >= 8)
+                {
+                    try
+                    {
+                        using var ms = new MemoryStream(data);
+                        var parser = new MAVLink.MavlinkParse();
+                        var message = parser.ReadPacket(ms);
+                        if (message != null)
+                        {
+                            OnMessageReceived?.Invoke(message);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Message parse error: {ex.Message}");
+                    }
+                }
             }
         }
         catch (OperationCanceledException)
         {
             // Normal cancellation
+        }
+    }
+
+    public async Task SendAsync(MAVLink.MAVLinkMessage message)
+    {
+        if (_connection == null) return;
+
+        try
+        {
+            var parser = new MAVLink.MavlinkParse();
+            //var data = parser.GenerateMAVLinkPacket(message);
+            //await _connection.SendAsync(data);
+            OnMessageSent?.Invoke(message);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Send message error: {ex.Message}");
         }
     }
 

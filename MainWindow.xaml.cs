@@ -89,7 +89,19 @@ public partial class MainWindow : Window
     {
         _mavInspector.NewSysidCompid += (s, e) => Dispatcher.BeginInvoke(UpdateSystemList);
 
-        // TreeView event handler'ı düzeltildi
+        // GCS traffic checkbox event handler
+        ShowGCSTraffic.Checked += (s, e) =>
+        {
+            _connectionManager.OnMessageReceived += HandleMessage;
+            _connectionManager.OnMessageSent += HandleMessage;
+        };
+
+        ShowGCSTraffic.Unchecked += (s, e) =>
+        {
+            _connectionManager.OnMessageReceived -= HandleMessage;
+            _connectionManager.OnMessageSent -= HandleMessage;
+        };
+
         treeView1.SelectedItemChanged += TreeView_SelectedItemChanged;
     }
 
@@ -225,13 +237,19 @@ public partial class MainWindow : Window
         }
     }
 
+    private void HandleMessage(MAVLink.MAVLinkMessage message)
+    {
+        if (ShowGCSTraffic.IsChecked.GetValueOrDefault() || message.sysid != 255)
+        {
+            ProcessMessage(message);
+        }
+    }
+
     private void ProcessMessage(MAVLink.MAVLinkMessage message)
     {
         try
         {
-            if (!ShowGCSTraffic.IsChecked.GetValueOrDefault() && message.sysid == 255)
-                return;
-
+            // GCS traffic kontrolünü kaldır çünkü artık HandleMessage'da kontrol ediliyor
             _mavInspector.Add(message.sysid, message.compid, message.msgid, message, message.Length);
 
             Interlocked.Increment(ref _totalMessages);
