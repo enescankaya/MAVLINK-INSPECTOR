@@ -38,9 +38,18 @@ public class SerialConnection : IConnection
         {
             if (IsDisposed || IsConnected) return;
 
+            Debug.WriteLine($"Opening serial port {_port.PortName} at {_port.BaudRate} baud");
+
             _port.DataReceived += Port_DataReceived;
             _port.ErrorReceived += Port_ErrorReceived;
             _port.Open();
+
+            Debug.WriteLine("Serial port opened successfully");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Serial port open error: {ex.Message}");
+            throw;
         }
         finally
         {
@@ -55,17 +64,17 @@ public class SerialConnection : IConnection
         try
         {
             var bytesToRead = _port.BytesToRead;
+            Debug.WriteLine($"Serial data received: {bytesToRead} bytes");
+
             if (bytesToRead <= 0) return;
 
-            lock (_readBuffer)
+            var buffer = new byte[bytesToRead];
+            var bytesRead = _port.Read(buffer, 0, bytesToRead);
+
+            if (bytesRead > 0)
             {
-                var bytesRead = _port.Read(_readBuffer, 0, Math.Min(bytesToRead, _readBuffer.Length));
-                if (bytesRead > 0)
-                {
-                    var data = new byte[bytesRead];
-                    Buffer.BlockCopy(_readBuffer, 0, data, 0, bytesRead);
-                    _dataChannel.Writer.TryWrite(data);
-                }
+                Debug.WriteLine($"Read {bytesRead} bytes from serial port");
+                _dataChannel.Writer.TryWrite(buffer);
             }
         }
         catch (Exception ex)

@@ -1,4 +1,5 @@
-﻿using System.Net.Sockets;
+﻿using System.Diagnostics;
+using System.Net.Sockets;
 using System.Threading.Channels;
 
 namespace MavlinkInspector.Connections;
@@ -78,16 +79,37 @@ public class TcpConnection : IConnection
         await _connectionLock.WaitAsync();
         try
         {
-            if (!IsConnected) return;
-
             _readCts?.Cancel();
+
             if (_stream != null)
             {
-                await _stream.DisposeAsync();
+                try
+                {
+                    _stream.Close();
+                    await _stream.DisposeAsync();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Stream close error: {ex.Message}");
+                }
                 _stream = null;
             }
-            _client?.Dispose();
-            _client = null;
+
+            if (_client != null)
+            {
+                try
+                {
+                    _client.Close();
+                    _client.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Client close error: {ex.Message}");
+                }
+                _client = null;
+            }
+
+            _dataChannel.Writer.TryComplete();
         }
         finally
         {
@@ -119,5 +141,16 @@ public class TcpConnection : IConnection
         await DisconnectAsync();
         _readCts?.Dispose();
         _connectionLock.Dispose();
+    }
+
+    // Socket timeout ve keep-alive ayarları ekle
+    private void ConfigureSocket()
+    {
+        if (_client?.Client == null) return;
+
+        _client.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+        _client.Client.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, 5);
+        _client.Client.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, 1);
+        _client.Client.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, 3);
     }
 }

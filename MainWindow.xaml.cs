@@ -29,6 +29,17 @@ public partial class MainWindow : Window
     private readonly object _treeUpdateLock = new();
     private MAVLink.MAVLinkMessage? _currentlyDisplayedMessage;
     private readonly DispatcherTimer _detailsUpdateTimer = new();
+    private const int MESSAGE_BUFFER_SIZE = 1024 * 16;
+    private const int UI_UPDATE_THRESHOLD = 100; // ms
+    private const int MAX_TREE_ITEMS = 1000;
+    private DateTime _lastUIUpdate = DateTime.MinValue;
+    private bool _isDisposed;
+
+    // Eklenen yeni sabitler
+    private const int UI_BATCH_SIZE = 10;
+    private const int UI_UPDATE_DELAY_MS = 50;
+    private readonly Queue<MAVLink.MAVLinkMessage> _messageQueue = new();
+    private readonly DispatcherTimer _uiUpdateTimer;
 
     private class MessageUpdateInfo
     {
@@ -44,6 +55,14 @@ public partial class MainWindow : Window
         SetupTimer();
         SetupMessageHandling();
         SetupDetailsTimer();
+
+        // UI güncellemelerini toplu yap
+        _uiUpdateTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(UI_UPDATE_DELAY_MS)
+        };
+        _uiUpdateTimer.Tick += ProcessMessageQueue;
+        _uiUpdateTimer.Start();
     }
 
     private void InitializeUI()
@@ -70,13 +89,8 @@ public partial class MainWindow : Window
     {
         _mavInspector.NewSysidCompid += (s, e) => Dispatcher.BeginInvoke(UpdateSystemList);
 
-        treeView1.SelectedItemChanged += (s, e) =>
-        {
-            if (e.NewValue is TreeViewItem item && item.Tag is MAVLink.MAVLinkMessage msg)
-            {
-                UpdateMessageDetails(msg);
-            }
-        };
+        // TreeView event handler'ı düzeltildi
+        treeView1.SelectedItemChanged += TreeView_SelectedItemChanged;
     }
 
     private void SetupDetailsTimer()
@@ -153,49 +167,111 @@ public partial class MainWindow : Window
     private async Task ProcessIncomingDataAsync()
     {
         var mavlinkParse = new MAVLink.MavlinkParse();
-        var buffer = new byte[4096]; // Fixed size buffer
-        var bufferList = new List<byte>();
+        var messageQueue = new ConcurrentQueue<MAVLink.MAVLinkMessage>();
+        var buffer = new List<byte>();
 
         try
         {
+            // Debug için log ekle
+            Debug.WriteLine("Starting message processing...");
+
             await foreach (var data in _connectionManager.DataChannel.ReadAllAsync())
             {
-                bufferList.AddRange(data);
+                buffer.AddRange(data);
 
-                while (bufferList.Count >= 8) // Minimum MAVLink message size
+                while (buffer.Count >= 8) // Minimum MAVLink message size
                 {
-                    using var ms = new MemoryStream(bufferList.ToArray());
                     try
                     {
+                        using var ms = new MemoryStream(buffer.ToArray());
                         var packet = mavlinkParse.ReadPacket(ms);
-                        if (packet == null) break;
 
-                        var processedBytes = (int)ms.Position;
-                        bufferList.RemoveRange(0, processedBytes);
+                        if (packet == null)
+                        {
+                            buffer.RemoveAt(0);
+                            continue;
+                        }
 
-                        await ProcessMessageAsync(packet);
+                        Debug.WriteLine($"Received message: SysID={packet.sysid}, CompID={packet.compid}, MsgID={packet.msgid}");
+
+                        // İşleme için UI thread'e gönder
+                        await Dispatcher.InvokeAsync(() =>
+                        {
+                            ProcessMessage(packet);
+                        });
+
+                        // Başarıyla okunan veriyi buffer'dan kaldır
+                        var bytesRead = (int)ms.Position;
+                        buffer.RemoveRange(0, bytesRead);
                     }
-                    catch
+                    catch (Exception ex)
                     {
-                        bufferList.RemoveAt(0);
+                        Debug.WriteLine($"Error parsing packet: {ex.Message}");
+                        buffer.RemoveAt(0);
                     }
                 }
 
-                if (bufferList.Count > 1024 * 16)
+                // Buffer temizleme
+                if (buffer.Count > MESSAGE_BUFFER_SIZE)
                 {
-                    bufferList.Clear();
-                }//--
+                    buffer.RemoveRange(0, buffer.Count - MESSAGE_BUFFER_SIZE);
+                }
             }
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"ProcessIncomingDataAsync error: {ex.Message}");
+            await DisconnectAsync();
+        }
+    }
+
+    private void ProcessMessage(MAVLink.MAVLinkMessage message)
+    {
+        try
+        {
+            if (!ShowGCSTraffic.IsChecked.GetValueOrDefault() && message.sysid == 255)
+                return;
+
+            _mavInspector.Add(message.sysid, message.compid, message.msgid, message, message.Length);
+
+            Interlocked.Increment(ref _totalMessages);
+            Interlocked.Increment(ref _messagesSinceLastUpdate);
+
+            // Message queue'ya ekle
+            lock (_messageQueue)
+            {
+                _messageQueue.Enqueue(message);
+            }
+
+            // Eğer bu mesaj şu an seçili olan mesajsa, detayları güncelle
+            if (IsSelectedMessage(message))
+            {
+                Dispatcher.InvokeAsync(() => UpdateMessageDetails(message));
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"ProcessMessage error: {ex.Message}");
+        }
+    }
+
+    private async Task UpdateUIFromQueueAsync(ConcurrentQueue<MAVLink.MAVLinkMessage> messageQueue)
+    {
+        while (!_isDisposed)
+        {
+            if (messageQueue.TryDequeue(out var message))
+            {
+                await ProcessMessageAsync(message);
+            }
+            else
+            {
+                await Task.Delay(1); // CPU kullanımını azalt
+            }
         }
     }
 
     private async Task ProcessMessageAsync(MAVLink.MAVLinkMessage message)
     {
-        // Skip GCS messages if ShowGCSTraffic is not checked
         if (!ShowGCSTraffic.IsChecked.GetValueOrDefault() && message.sysid == 255)
             return;
 
@@ -204,20 +280,41 @@ public partial class MainWindow : Window
         Interlocked.Increment(ref _totalMessages);
         Interlocked.Increment(ref _messagesSinceLastUpdate);
 
-        var messageKey = (uint)((message.sysid << 16) | (message.compid << 8) | message.msgid);
         var now = DateTime.UtcNow;
-
-        var updateInfo = _messageUpdateInfo.GetOrAdd(messageKey, _ => new MessageUpdateInfo());
-
-        if ((now - updateInfo.LastUpdate).TotalMilliseconds >= UI_UPDATE_INTERVAL_MS)
+        if ((now - _lastUIUpdate).TotalMilliseconds >= UI_UPDATE_THRESHOLD)
         {
-            var rate = _mavInspector.GetMessageRate(message.sysid, message.compid, message.msgid);
-            await Dispatcher.InvokeAsync(() =>
+            _lastUIUpdate = now;
+            await UpdateUIAsync(message);
+        }
+    }
+
+    private async Task UpdateUIAsync(MAVLink.MAVLinkMessage message)
+    {
+        var rate = _mavInspector.GetMessageRate(message.sysid, message.compid, message.msgid);
+        await Dispatcher.InvokeAsync(() =>
+        {
+            UpdateTreeViewForMessage(message, rate);
+            CleanupOldMessages();
+        }, DispatcherPriority.Background);
+    }
+
+    private void CleanupOldMessages()
+    {
+        // TreeView'daki eski mesajları temizle
+        foreach (TreeViewItem vehicleNode in treeView1.Items)
+        {
+            foreach (TreeViewItem componentNode in vehicleNode.Items)
             {
-                UpdateTreeViewForMessage(message, rate);
-                updateInfo.LastRate = rate;
-                updateInfo.LastUpdate = now;
-            }, DispatcherPriority.Background);
+                var messages = componentNode.Items.Cast<TreeViewItem>().ToList();
+                if (messages.Count > MAX_TREE_ITEMS)
+                {
+                    var toRemove = messages.Count - MAX_TREE_ITEMS;
+                    for (int i = 0; i < toRemove; i++)
+                    {
+                        componentNode.Items.RemoveAt(0);
+                    }
+                }
+            }
         }
     }
 
@@ -234,65 +331,72 @@ public partial class MainWindow : Window
     }
     private void UpdateTreeViewForMessage(MAVLink.MAVLinkMessage message, double rate)
     {
-        lock (_treeUpdateLock)
+        try
         {
-            try
+            var messageKey = (uint)((message.sysid << 16) | (message.compid << 8) | message.msgid);
+            var bps = _mavInspector.GetBps(message.sysid, message.compid, message.msgid);
+
+            // Debug için mesaj bilgilerini yazdır
+            Debug.WriteLine($"Updating TreeView - Msg: {message.msgtypename}, Rate: {rate:F1} Hz, BPS: {bps:F0}");
+
+            var header = FormatMessageHeader(message, rate, bps);
+            var vehicleNode = GetOrCreateVehicleNode(message.sysid);
+            var componentNode = GetOrCreateComponentNode(vehicleNode, message);
+            var msgNode = componentNode.FindOrCreateChild(header, message.msgid, message);  // message'ı DataContext olarak geçir
+
+            // Header'ı güncelle ama DataContext'i koru
+            if (msgNode.Header is StackPanel sp && sp.Children.Count > 1 &&
+                sp.Children[1] is TextBlock tb)
             {
-                // Skip GCS messages if ShowGCSTraffic is not checked
-                if (!ShowGCSTraffic.IsChecked.GetValueOrDefault() && message.sysid == 255)
-                    return;
-
-                var vehicleNode = GetOrCreateVehicleNode(message.sysid);
-                var componentNode = GetOrCreateComponentNode(vehicleNode, message);
-
-                var bps = _mavInspector.GetBps(message.sysid, message.compid, message.msgid);
-                string header;
-
-                if (bps >= 1000)
-                    header = $"{message.msgtypename} ({rate:F1} Hz, {bps / 1000:F1} kbps)";
-                else
-                    header = $"{message.msgtypename} ({rate:F1} Hz, {bps:F0} bps)";
-
-                var messageKey = (uint)((message.sysid << 16) | (message.compid << 8) | message.msgid);
-                var updateInfo = _messageUpdateInfo.GetOrAdd(messageKey, _ => new MessageUpdateInfo());
-
-                if (header != updateInfo.LastHeader)
-                {
-                    var msgNode = componentNode.FindOrCreateChild(header, message.msgid, message);
-                    updateInfo.LastHeader = header;
-
-                    if (!_messageColors.TryGetValue(message.msgid, out var color))
-                    {
-                        color = _random.GetRandomColor();
-                        _messageColors[message.msgid] = color;
-                    }
-
-                    // Apply color to the text part only
-                    if (msgNode.Header is StackPanel stackPanel &&
-                        stackPanel.Children.Count > 1 &&
-                        stackPanel.Children[1] is TextBlock textBlock)
-                    {
-                        textBlock.Foreground = new SolidColorBrush(color);
-                    }
-
-                    // Sort only the message nodes, not the vehicle or component nodes
-                    SortTreeViewItems(componentNode);
-
-                    if (treeView1.SelectedItem is TreeViewItem selectedItem &&
-                        selectedItem.Tag is MAVLink.MAVLinkMessage selectedMsg &&
-                        selectedMsg.msgid == message.msgid &&
-                        selectedMsg.sysid == message.sysid &&
-                        selectedMsg.compid == message.compid)
-                    {
-                        UpdateMessageDetails(message);
-                    }
-                }
+                tb.Text = header;
             }
-            catch (Exception ex)
+
+            msgNode.DataContext = message;  // DataContext'i güncelle
+
+            // Node'u renklendir
+            UpdateNodeColor(msgNode, message.msgid);
+
+            // Seçili mesajı güncelle
+            if (IsSelectedMessage(message))
             {
-                Debug.WriteLine($"Error updating TreeView: {ex.Message}");
+                UpdateMessageDetails(message);
             }
         }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"UpdateTreeViewForMessage error: {ex.Message}");
+        }
+    }
+
+    private string FormatMessageHeader(MAVLink.MAVLinkMessage message, double rate, double bps)
+    {
+        if (bps >= 1000000)
+            return $"{message.msgtypename} ({rate:F1} Hz, {bps / 1000000:F1} Mbps)";
+        if (bps >= 1000)
+            return $"{message.msgtypename} ({rate:F1} Hz, {bps / 1000:F1} kbps)";
+        return $"{message.msgtypename} ({rate:F1} Hz, {bps:F0} bps)";
+    }
+
+    private void UpdateNodeColor(TreeViewItem node, uint msgId)
+    {
+        if (!_messageColors.TryGetValue(msgId, out var color))
+        {
+            color = GenerateMessageColor(msgId);
+            _messageColors[msgId] = color;
+        }
+
+        if (node.Header is StackPanel sp && sp.Children.Count > 1 &&
+            sp.Children[1] is TextBlock tb)
+        {
+            tb.Foreground = new SolidColorBrush(color);
+        }
+    }
+
+    private Color GenerateMessageColor(uint msgId)
+    {
+        // Daha iyi renk seçimi için HSV kullan
+        var hue = (msgId * 0.618034f) % 1.0f;
+        return ColorFromHSV(hue, 0.8f, 0.9f);
     }
 
     private void SortTreeViewItems(ItemsControl parent)
@@ -345,8 +449,98 @@ public partial class MainWindow : Window
 
     private void UpdateMessageDetails(MAVLink.MAVLinkMessage message)
     {
-        _currentlyDisplayedMessage = message;
-        detailsTextBox.UpdateMessageDetails(message);
+        try
+        {
+            if (message == null)
+            {
+                detailsTextBox.Clear();
+                return;
+            }
+
+            Debug.WriteLine($"Updating details for message: {message.msgtypename}");
+            _currentlyDisplayedMessage = message;
+
+            // Extensions.UpdateMessageDetails metodunu çağır
+            detailsTextBox.Dispatcher.Invoke(() =>
+            {
+                try
+                {
+                    detailsTextBox.UpdateMessageDetails(message);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error updating message details: {ex.Message}");
+                    detailsTextBox.Text = $"Error displaying message details: {ex.Message}";
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error in UpdateMessageDetails: {ex.Message}");
+        }
+    }
+
+    private void HighlightSelectedMessage(MAVLink.MAVLinkMessage message)
+    {
+        try
+        {
+            // TreeView'da ilgili mesajı bul
+            var vehicleNode = FindVehicleNode(message.sysid);
+            if (vehicleNode == null) return;
+
+            var componentNode = FindComponentNode(vehicleNode, message.compid);
+            if (componentNode == null) return;
+
+            var messageNode = FindMessageNode(componentNode, message.msgid);
+            if (messageNode == null) return;
+
+            // Seçili yap ve görünür kıl
+            messageNode.IsSelected = true;
+            messageNode.BringIntoView();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error highlighting message: {ex.Message}");
+        }
+    }
+
+    private TreeViewItem? FindVehicleNode(byte sysid)
+    {
+        return treeView1.Items.OfType<TreeViewItem>()
+                       .FirstOrDefault(n => n.Tag is byte id && id == sysid);
+    }
+
+    private TreeViewItem? FindComponentNode(TreeViewItem vehicleNode, byte compid)
+    {
+        return vehicleNode.Items.OfType<TreeViewItem>()
+                         .FirstOrDefault(n => n.Tag is int id && (id & 0xFF) == compid);
+    }
+
+    private TreeViewItem? FindMessageNode(TreeViewItem componentNode, uint msgid)
+    {
+        return componentNode.Items.OfType<TreeViewItem>()
+                           .FirstOrDefault(n => n.Tag is MAVLink.MAVLinkMessage msg && msg.msgid == msgid);
+    }
+
+    // TreeView seçim değişikliğini handle et
+    private void TreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+    {
+        try
+        {
+            if (e.NewValue is TreeViewItem item)
+            {
+                // TreeViewItem'ın DataContext'ini kontrol et (mesaj burada saklanıyor)
+                if (item.DataContext is MAVLink.MAVLinkMessage message)
+                {
+                    Debug.WriteLine($"Selected message: {message.msgtypename}");
+                    UpdateMessageDetails(message);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error in TreeView selection: {ex.Message}");
+        }
     }
 
     private void UpdateStatistics()
@@ -437,6 +631,65 @@ public partial class MainWindow : Window
     protected override void OnClosing(CancelEventArgs e)
     {
         _detailsUpdateTimer.Stop();
+        _isDisposed = true;
         base.OnClosing(e);
     }
-}
+
+    private bool IsSelectedMessage(MAVLink.MAVLinkMessage message)
+    {
+        if (treeView1.SelectedItem is not TreeViewItem selectedItem)
+            return false;
+
+        if (selectedItem.Tag is not MAVLink.MAVLinkMessage selectedMsg)
+            return false;
+
+        return selectedMsg.msgid == message.msgid &&
+               selectedMsg.sysid == message.sysid &&
+               selectedMsg.compid == message.compid;
+    }
+
+    private Color ColorFromHSV(float hue, float saturation, float value)
+    {
+        int hi = Convert.ToInt32(Math.Floor(hue * 6));
+        float f = (float)(hue * 6 - Math.Floor(hue * 6));
+        float p = value * (1 - saturation);
+        float q = value * (1 - f * saturation);
+        float t = value * (1 - (1 - f) * saturation);
+
+        byte b = (byte)(value * 255);
+
+        byte pb = (byte)(p * 255);
+        byte tb = (byte)(t * 255);
+        byte qb = (byte)(q * 255);
+
+        return hi switch
+        {
+            0 => Color.FromRgb(b, tb, pb),
+            1 => Color.FromRgb(qb, b, pb),
+            2 => Color.FromRgb(pb, b, tb),
+            3 => Color.FromRgb(pb, qb, b),
+            4 => Color.FromRgb(tb, pb, b),
+            _ => Color.FromRgb(b, pb, qb)
+        };
+    }
+
+    private void ProcessMessageQueue(object sender, EventArgs e)
+    {
+        if (_messageQueue.Count == 0) return;
+
+        var batch = new List<MAVLink.MAVLinkMessage>();
+        lock (_messageQueue)
+        {
+            while (batch.Count < UI_BATCH_SIZE && _messageQueue.Count > 0)
+            {
+                batch.Add(_messageQueue.Dequeue());
+            }
+        }
+
+        foreach (var message in batch)
+        {
+            var rate = _mavInspector.GetMessageRate(message.sysid, message.compid, message.msgid);
+            UpdateTreeViewForMessage(message, rate);
+        }
+    }
+} // MainWindow class ends here

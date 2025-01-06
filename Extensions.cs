@@ -12,22 +12,6 @@ public static class Extensions
 
     public static TreeViewItem FindOrCreateChild(this ItemsControl parent, string header, object tag, object? data = null)
     {
-        var cacheKey = $"{parent.GetHashCode()}_{tag}";
-
-        if (_itemCache.TryGetValue(cacheKey, out var weakRef) &&
-            weakRef.TryGetTarget(out var cachedItem))
-        {
-            if (cachedItem.Header.ToString() != header)
-            {
-                cachedItem.Header = CreateTreeItemHeader(header);
-            }
-            if (data != null)
-            {
-                cachedItem.Tag = data;
-            }
-            return cachedItem;
-        }
-
         var item = parent.Items.OfType<TreeViewItem>()
                              .FirstOrDefault(item => item.Tag?.Equals(tag) == true);
 
@@ -37,13 +21,48 @@ public static class Extensions
             {
                 Header = CreateTreeItemHeader(header),
                 Tag = tag,
+                DataContext = data,
                 IsExpanded = true
             };
             parent.Items.Add(item);
+            SortTreeItems(parent); // Yeni item eklendiğinde sırala
+        }
+        else if (item.Header.ToString() != header)
+        {
+            item.Header = CreateTreeItemHeader(header);
         }
 
-        _itemCache[cacheKey] = new WeakReference<TreeViewItem>(item);
         return item;
+    }
+
+    private static void SortTreeItems(ItemsControl parent)
+    {
+        var items = parent.Items.Cast<TreeViewItem>().ToList();
+
+        // Mesaj node'larını sırala, Vehicle ve Component node'larını olduğu gibi bırak
+        var sortedItems = items.Where(i => i.Header is StackPanel)
+                             .OrderBy(GetSortableText)
+                             .Concat(items.Where(i => !(i.Header is StackPanel)));
+
+        parent.Items.Clear();
+        foreach (var item in sortedItems)
+        {
+            parent.Items.Add(item);
+        }
+    }
+
+    private static string GetSortableText(TreeViewItem item)
+    {
+        if (item.Header is StackPanel sp && sp.Children.Count > 1 &&
+            sp.Children[1] is TextBlock tb)
+        {
+            string text = tb.Text;
+            int bracketIndex = text.IndexOf('(');
+            return bracketIndex > 0
+                ? text.Substring(0, bracketIndex).Trim().ToUpperInvariant()
+                : text.ToUpperInvariant();
+        }
+        return item.Header?.ToString()?.ToUpperInvariant() ?? string.Empty;
     }
 
     private static StackPanel CreateTreeItemHeader(string text)
@@ -75,42 +94,122 @@ public static class Extensions
     public static void UpdateMessageDetails(this TextBox textBox, MAVLink.MAVLinkMessage message)
     {
         var sb = new StringBuilder();
+
         // Header bilgileri
-        sb.AppendLine($"{"Message Type:",-20} {message.msgtypename}");
-        sb.AppendLine($"{"System ID:",-20} {message.sysid}");
-        sb.AppendLine($"{"Component ID:",-20} {message.compid}");
-        sb.AppendLine($"{"Message ID:",-20} {message.msgid}");
-        sb.AppendLine($"{"Length:",-20} {message.Length} bytes");
+        sb.AppendFormat("Message Type:      {0}\n", message.msgtypename);
+        sb.AppendFormat("System ID:         {0}\n", message.sysid);
+        sb.AppendFormat("Component ID:      {0}\n", message.compid);
+        sb.AppendFormat("Message ID:        {0}\n", message.msgid);
+        sb.AppendFormat("Length:            {0} bytes\n", message.Length);
         sb.AppendLine();
 
-        var messageInfo = MAVLink.MAVLINK_MESSAGE_INFOS.GetMessageInfo(message.msgid);
-        if (messageInfo.type != null)
+        try
         {
-            // En uzun field ismini ve değeri bul
-            var fields = messageInfo.type.GetFields();
-            int maxNameLength = fields.Max(f => f.Name.Length);
-            int maxValueLength = 15; // Sabit değer genişliği
-
-            foreach (var field in fields)
+            // Message fields
+            var messageInfo = MAVLink.MAVLINK_MESSAGE_INFOS.GetMessageInfo(message.msgid);
+            if (messageInfo.type != null)
             {
-                var value = field.GetValue(message.data)?.ToString() ?? "null";
-                var typeName = field.FieldType.Name;
+                sb.AppendLine("Fields:");
+                sb.AppendLine("Name                    Value                   Type");
+                sb.AppendLine("----------------------------------------------------");
 
-                // Format: FieldName     Value          Type
-                //         |<-name->|<---value--->|<---type--->|
-                sb.AppendLine($"{field.Name.PadRight(maxNameLength)}    {value.PadLeft(maxValueLength)}    {typeName,-12}");
+                foreach (var field in messageInfo.type.GetFields())
+                {
+                    string fieldName = field.Name;
+                    object fieldValue = field.GetValue(message.data) ?? "null";
+                    string typeName = GetFriendlyTypeName(field.FieldType);
+
+                    // Array handling
+                    if (field.FieldType.IsArray)
+                    {
+                        fieldValue = FormatArrayValue(fieldValue as Array);
+                    }
+                    // Special types handling
+                    else if (field.Name.Contains("time", StringComparison.OrdinalIgnoreCase) &&
+                            fieldValue is ulong timestamp)
+                    {
+                        fieldValue = ConvertTimestamp(timestamp);
+                    }
+
+                    // Format the line with proper padding
+                    sb.AppendFormat("{0,-20} {1,-20} {2}\n",
+                        fieldName,
+                        fieldValue?.ToString() ?? "null",
+                        typeName);
+                }
             }
+            else
+            {
+                sb.AppendLine("No message field information available.");
+            }
+        }
+        catch (Exception ex)
+        {
+            sb.AppendLine($"\nError parsing message fields: {ex.Message}");
         }
 
         textBox.Text = sb.ToString();
     }
 
-    private static string FormatFieldValue(object value)
+    private static string GetFriendlyTypeName(Type type)
     {
-        if (value == null) return "null";
-        if (value is Array arr)
-            return string.Join(", ", arr.Cast<object>());
-        return value.ToString();
+        if (type.IsArray)
+            return $"{GetFriendlyTypeName(type.GetElementType())}[]";
+
+        return type.Name switch
+        {
+            "Single" => "float",
+            "Int32" => "int",
+            "UInt32" => "uint",
+            "Int16" => "short",
+            "UInt16" => "ushort",
+            "Byte" => "byte",
+            "SByte" => "sbyte",
+            "Int64" => "long",
+            "UInt64" => "ulong",
+            _ => type.Name
+        };
+    }
+
+    private static string FormatArrayValue(Array array)
+    {
+        if (array == null) return "null";
+
+        // For byte arrays, show as hex if small, otherwise show length
+        if (array is byte[] bytes)
+        {
+            if (bytes.Length <= 8)
+                return BitConverter.ToString(bytes);
+            return $"[{bytes.Length} bytes]";
+        }
+
+        // For other arrays, show first few elements
+        var items = array.Cast<object>()
+                        .Take(5)
+                        .Select(x => x?.ToString() ?? "null");
+
+        string result = string.Join(", ", items);
+        if (array.Length > 5)
+            result += $"... +{array.Length - 5} more";
+
+        return $"[{result}]";
+    }
+
+    private static string ConvertTimestamp(ulong timestamp)
+    {
+        try
+        {
+            if (timestamp == 0) return "0";
+
+            // Assume microseconds since Unix epoch
+            var dateTime = DateTimeOffset.FromUnixTimeMilliseconds((long)(timestamp / 1000))
+                                      .LocalDateTime;
+            return dateTime.ToString("yyyy-MM-dd HH:mm:ss.fff");
+        }
+        catch
+        {
+            return timestamp.ToString();
+        }
     }
 }
 

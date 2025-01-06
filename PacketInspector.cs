@@ -25,6 +25,64 @@ namespace MavlinkInspector
             }
         }
 
+        private readonly ConcurrentDictionary<(uint id, uint msgid), CircularBuffer<irate>> _rateBuffers =
+            new ConcurrentDictionary<(uint id, uint msgid), CircularBuffer<irate>>();
+        private readonly ConcurrentDictionary<(uint id, uint msgid), CircularBuffer<irate>> _bpsBuffers =
+            new ConcurrentDictionary<(uint id, uint msgid), CircularBuffer<irate>>();
+
+        private class CircularBuffer<T> where T : struct
+        {
+            private readonly T[] _buffer;
+            private int _start;
+            private int _count;
+            private readonly object _lock = new();
+
+            public CircularBuffer(int capacity)
+            {
+                _buffer = new T[capacity];
+            }
+
+            public void Add(T item)
+            {
+                lock (_lock)
+                {
+                    if (_count == _buffer.Length)
+                    {
+                        _start = (_start + 1) % _buffer.Length;
+                    }
+                    else
+                    {
+                        _count++;
+                    }
+                    _buffer[(_start + _count - 1) % _buffer.Length] = item;
+                }
+            }
+
+            public IEnumerable<T> GetItems(DateTime cutoff)
+            {
+                lock (_lock)
+                {
+                    var items = new List<T>();
+                    for (int i = 0; i < _count; i++)
+                    {
+                        var item = _buffer[(_start + i) % _buffer.Length];
+                        if (item is irate rate && rate.dateTime >= cutoff)
+                            items.Add(item);
+                    }
+                    return items;
+                }
+            }
+
+            public void Clear()
+            {
+                lock (_lock)
+                {
+                    _start = 0;
+                    _count = 0;
+                }
+            }
+        }
+
         public List<byte> SeenSysid()
         {
             return toArray(_history.Keys).Select(id => GetFromID(id).sysid).ToList();
@@ -35,9 +93,25 @@ namespace MavlinkInspector
             return toArray(_history.Keys).Select(id => GetFromID(id).compid).ToList();
         }
 
+        // Rate hesaplama mantığı optimize edildi
         public double GetMessageRate(byte sysid, byte compid, uint msgid)
         {
-            return SeenRate(sysid, compid, msgid);
+            var id = GetID(sysid, compid);
+            var key = (id, msgid);
+            var now = DateTime.UtcNow;
+            var cutoff = now.AddMilliseconds(-MAX_HISTORY_TIME_MS);
+
+            var buffer = _rateBuffers.GetOrAdd(key, _ => new CircularBuffer<irate>(RateHistory));
+            var samples = buffer.GetItems(cutoff).Cast<irate>().ToList();
+
+            if (samples.Count < 2) return 0;
+
+            // Rate hesabı düzeltildi
+            var timeSpan = (samples.Last().dateTime - samples.First().dateTime).TotalSeconds;
+            if (timeSpan <= 0) return 0;
+
+            var messageCount = samples.Sum(s => s.value);
+            return messageCount / timeSpan;
         }
 
         public double SeenRate(byte sysid, byte compid, uint msgid)
@@ -66,30 +140,25 @@ namespace MavlinkInspector
             }
         }
 
+        // BPS hesaplaması optimize edildi
         public double GetBps(byte sysid, byte compid, uint msgid)
         {
             var id = GetID(sysid, compid);
-            var end = DateTime.Now;
-            var start = end.AddSeconds(-3);
+            var key = (id, msgid);
+            var now = DateTime.UtcNow;
+            var cutoff = now.AddMilliseconds(-MAX_HISTORY_TIME_MS);
 
-            lock (_lock)
-            {
-                if (!_bps.TryGetValue(id, out var rates) || !rates.TryGetValue(msgid, out var data))
-                    return 0;
+            var buffer = _bpsBuffers.GetOrAdd(key, _ => new CircularBuffer<irate>(RateHistory));
+            var samples = buffer.GetItems(cutoff).Cast<irate>().ToList();
 
-                try
-                {
-                    var starttime = data.First().dateTime;
-                    starttime = starttime < start ? start : starttime;
-                    var msgbps = data.Where(a => a.dateTime > start && a.dateTime < end)
-                                    .Sum(a => a.value / (end - starttime).TotalSeconds);
-                    return msgbps * 8; // Convert to bits
-                }
-                catch
-                {
-                    return 0;
-                }
-            }
+            if (samples.Count < 2) return 0;
+
+            var timeSpan = (samples.Last().dateTime - samples.First().dateTime).TotalSeconds;
+            if (timeSpan <= 0) return 0;
+
+            // Toplam byte'ı bits'e çevir ve saniyeye böl
+            var totalBits = samples.Sum(s => s.value) * 8.0;
+            return totalBits / timeSpan;
         }
 
         public double GetBps(byte sysid, byte compid)
@@ -148,35 +217,20 @@ namespace MavlinkInspector
         public void Add(byte sysid, byte compid, uint msgid, T message, int size)
         {
             var id = GetID(sysid, compid);
-            var now = DateTime.Now;
+            var now = DateTime.UtcNow;
+            var key = (id, msgid);
 
-            lock (_lock)
-            {
-                // Initialize dictionaries for new ID
-                if (!_history.ContainsKey(id))
-                    Clear(sysid, compid);
+            // Update message history
+            _history.GetOrAdd(id, _ => new ConcurrentDictionary<uint, T>())[msgid] = message;
 
-                // Update message history
-                _history.GetOrAdd(id, _ => new ConcurrentDictionary<uint, T>())[msgid] = message;
+            // Update rate tracking
+            var rateBuffer = _rateBuffers.GetOrAdd(key, _ => new CircularBuffer<irate>(RateHistory));
+            rateBuffer.Add(new irate(now, 1));
 
-                // Update rate tracking
-                var rateDict = _rate.GetOrAdd(id, _ => new ConcurrentDictionary<uint, List<irate>>());
-                if (!rateDict.ContainsKey(msgid))
-                    rateDict[msgid] = new List<irate>();
-                rateDict[msgid].Add(new irate(now, 1));
-
-                // Update bandwidth tracking
-                var bpsDict = _bps.GetOrAdd(id, _ => new ConcurrentDictionary<uint, List<irate>>());
-                if (!bpsDict.ContainsKey(msgid))
-                    bpsDict[msgid] = new List<irate>();
-                bpsDict[msgid].Add(new irate(now, size + 8)); // Include MAVLink overhead
-
-                // Cleanup old entries
-                while (rateDict[msgid].Count > RateHistory)
-                    rateDict[msgid].RemoveAt(0);
-                while (bpsDict[msgid].Count > RateHistory)
-                    bpsDict[msgid].RemoveAt(0);
-            }
+            // Update bandwidth tracking (include MAVLink overhead)
+            var totalSize = size + 8; // MAVLink v1 overhead
+            var bpsBuffer = _bpsBuffers.GetOrAdd(key, _ => new CircularBuffer<irate>(RateHistory));
+            bpsBuffer.Add(new irate(now, totalSize));
 
             NewSysidCompid?.Invoke(this, EventArgs.Empty);
         }
@@ -206,23 +260,12 @@ namespace MavlinkInspector
 
         public void Clear()
         {
-            lock (_lock)
-            {
-                // Dictionary'leri yeniden oluşturmak yerine içeriklerini temizle
-                foreach (var dict in _history.Values)
-                    dict.Clear();
+            _history.Clear();
+            foreach (var buffer in _rateBuffers.Values)
+                buffer.Clear();
+            foreach (var buffer in _bpsBuffers.Values)
+                buffer.Clear();
 
-                foreach (var dict in _rate.Values)
-                    dict.Clear();
-
-                foreach (var dict in _bps.Values)
-                    dict.Clear();
-
-                // Ana dictionary yapılarını koru
-                // Yeni mesajlar geldiğinde kullanılacak
-            }
-
-            // Event'i tetikle ama null ile değil
             NewSysidCompid?.Invoke(this, EventArgs.Empty);
         }
 
@@ -275,6 +318,23 @@ namespace MavlinkInspector
 
             return _history.TryGetValue(id, out var messages) &&
                    messages.TryGetValue(msgid, out message);
+        }
+
+        // Yeni eklenen helper method
+        private double CalculateRate(List<irate> samples, DateTime start, DateTime end)
+        {
+            if (samples.Count < 2) return 0;
+
+            var filteredSamples = samples
+                .Where(s => s.dateTime >= start && s.dateTime <= end)
+                .ToList();
+
+            if (filteredSamples.Count < 2) return 0;
+
+            var timeSpan = (end - start).TotalSeconds;
+            if (timeSpan <= 0) return 0;
+
+            return filteredSamples.Sum(s => s.value) / timeSpan;
         }
     }
 }
