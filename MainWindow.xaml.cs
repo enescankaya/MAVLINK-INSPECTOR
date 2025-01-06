@@ -144,7 +144,7 @@ public partial class MainWindow : Window
             await _connectionManager.ConnectAsync(parameters);
             ConnectButton.Content = "Disconnect";
             UpdateUIState(true);
-            statusConnection.Content = "Connected";
+            statusConnectionText.Text = "Connected";
 
             _ = ProcessIncomingDataAsync();
         }
@@ -161,7 +161,7 @@ public partial class MainWindow : Window
         await _connectionManager.DisconnectAsync();
         ConnectButton.Content = "Connect";
         UpdateUIState(false);
-        statusConnection.Content = "Disconnected";
+        statusConnectionText.Text = "Disconnected";
     }
 
     private async Task ProcessIncomingDataAsync()
@@ -394,9 +394,9 @@ public partial class MainWindow : Window
 
     private Color GenerateMessageColor(uint msgId)
     {
-        // Daha iyi renk seçimi için HSV kullan
-        var hue = (msgId * 0.618034f) % 1.0f;
-        return ColorFromHSV(hue, 0.8f, 0.9f);
+        // HSV kullanarak koyu renkler üret
+        var hue = (msgId * 0.618034f) % 1.0f;  // Altın oran ile dağılım
+        return ColorFromHSV(hue, 0.9f, 0.7f);  // Doygunluğu artır, parlaklığı azalt
     }
 
     private void SortTreeViewItems(ItemsControl parent)
@@ -550,8 +550,8 @@ public partial class MainWindow : Window
         if (elapsed >= 1)
         {
             var rate = _messagesSinceLastUpdate / elapsed;
-            statusMessages.Content = $"Messages: {_totalMessages}";
-            statusRate.Content = $"Rate: {rate:F1} msg/s";
+            statusMessagesText.Text = $"Messages: {_totalMessages}";
+            statusRateText.Text = $"Rate: {rate:F1} msg/s";
             _messagesSinceLastUpdate = 0;
             _lastRateUpdate = now;
         }
@@ -580,8 +580,8 @@ public partial class MainWindow : Window
                 {
                     treeView1.Items.Clear();
                     detailsTextBox.Clear();
-                    statusMessages.Content = "Messages: 0";
-                    statusRate.Content = "Rate: 0 msg/s";
+                    statusMessagesText.Text = "Messages: 0";
+                    statusRateText.Text = "Rate: 0 msg/s";
                 });
 
                 // Sayaçları sıfırla
@@ -602,7 +602,7 @@ public partial class MainWindow : Window
                 {
                     Dispatcher.Invoke(() =>
                     {
-                        statusConnection.Content = "Connected - Receiving messages...";
+                        statusConnectionText.Text = "Connected - Receiving messages...";
                     });
 
                     // Mevcut bağlantıyı koru, mesaj almaya devam et

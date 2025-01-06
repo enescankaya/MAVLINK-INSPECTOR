@@ -2,6 +2,7 @@
 using System.Text;
 using System.Windows.Controls;
 using System.Windows;
+using System.Windows.Media;
 
 namespace MavlinkInspector;
 
@@ -21,7 +22,7 @@ public static class Extensions
             {
                 Header = CreateTreeItemHeader(header),
                 Tag = tag,
-                DataContext = data,
+                DataContext = data,  // DataContext'i message olarak ayarla
                 IsExpanded = true
             };
             parent.Items.Add(item);
@@ -67,22 +68,29 @@ public static class Extensions
 
     private static StackPanel CreateTreeItemHeader(string text)
     {
-        var stackPanel = new StackPanel { Orientation = Orientation.Horizontal };
+        var stackPanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 2, 0, 2)
+        };
 
         var treeSymbol = new TextBlock
         {
-            Text = "-> ",  // Daha basit tree sembolü
+            Text = "▸",
+            FontFamily = new FontFamily("Segoe UI"),
+            FontSize = 13,
+            Margin = new Thickness(0, 0, 8, 0),
             VerticalAlignment = VerticalAlignment.Center,
-            FontFamily = new System.Windows.Media.FontFamily("Consolas"),
-            Margin = new Thickness(0, 0, 5, 0),
-            Width = 15 // Sabit genişlik
+            Foreground = new SolidColorBrush(Color.FromRgb(180, 180, 180))
         };
 
         var textBlock = new TextBlock
         {
             Text = text,
+            FontFamily = new FontFamily("Cascadia Code, Consolas"),
+            FontSize = 13,
             VerticalAlignment = VerticalAlignment.Center,
-            FontFamily = new System.Windows.Media.FontFamily("Consolas")
+            Foreground = new SolidColorBrush(Colors.White)
         };
 
         stackPanel.Children.Add(treeSymbol);
