@@ -113,6 +113,35 @@
                         Click="ResetButton_Click"/>
                 </StackPanel>
             </GroupBox>
+
+            <!-- Yeni Update Settings GroupBox -->
+            <GroupBox Header="Update Settings" Padding="5">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Update Interval:" 
+                             VerticalAlignment="Center" 
+                             Margin="5,0"
+                             Foreground="{StaticResource TextColor}"/>
+                    <ComboBox Name="UpdateIntervalComboBox" 
+                             Width="80" 
+                             Margin="5"
+                             SelectedValuePath="Value"
+                             DisplayMemberPath="Display"
+                             SelectionChanged="UpdateIntervalComboBox_SelectionChanged"
+                             VerticalContentAlignment="Center"
+                             HorizontalContentAlignment="Center"
+                             Background="White">
+                        <ComboBox.Resources>
+                            <Style TargetType="ComboBoxItem">
+                                <Setter Property="Foreground" Value="#333333"/>
+                            </Style>
+                        </ComboBox.Resources>
+                    </ComboBox>
+                    <TextBlock Text="ms" 
+                             VerticalAlignment="Center"
+                             Margin="0,0,5,0"
+                             Foreground="{StaticResource TextColor}"/>
+                </StackPanel>
+            </GroupBox>
         </StackPanel>
 
         <Grid Grid.Row="1">
@@ -334,8 +363,8 @@
                             </ListView>
                         </Border>
                     </StackPanel>
-    </ScrollViewer>
-</GroupBox>
+                </ScrollViewer>
+            </GroupBox>
 
         </Grid>
 

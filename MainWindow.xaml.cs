@@ -42,7 +42,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _detailsUpdateTimer = new();
     private DateTime _lastTreeViewUpdate = DateTime.MinValue;
     private DateTime _lastDetailsUpdate = DateTime.MinValue;
-    private const int UPDATE_INTERVAL_MS = 200;
+    private int UPDATE_INTERVAL_MS = 200;
 
     private class MessageUpdateInfo
     {
@@ -58,7 +58,7 @@ public partial class MainWindow : Window
         SetupTimer();
         SetupMessageHandling();
         SetupDetailsTimer();
-
+        InitializeUpdateIntervalComboBox();
         // Timer'ları konfigüre et
         ConfigureUpdateTimers();
     }
@@ -581,7 +581,8 @@ public partial class MainWindow : Window
                     crc16Text.Text = message.crc16.ToString("X4"); // Hexadecimal format
                     seqText.Text = message.seq.ToString();
                     headerText.Text = message.header.ToString();
-                    if (message.ismavlink2) {
+                    if (message.ismavlink2)
+                    {
                         isMavlink2Text.Text = "Mavlink V2";
                     }
                     else
@@ -687,6 +688,11 @@ public partial class MainWindow : Window
                     compidText.Text = string.Empty;
                     msgidText.Text = string.Empty;
                     lengthText.Text = string.Empty;
+                    msgTypeNameText.Text = string.Empty;
+                    crc16Text.Text = string.Empty;
+                    seqText.Text = string.Empty;
+                    headerText.Text = string.Empty;
+                    isMavlink2Text.Text = string.Empty;
                     fieldsListView.Items.Clear(); statusMessagesText.Text = "Messages: 0";
                     statusRateText.Text = "Rate: 0 msg/s";
                 });
@@ -801,5 +807,29 @@ public partial class MainWindow : Window
         }
 
         _lastDetailsUpdate = DateTime.Now;
+    }
+    private void InitializeUpdateIntervalComboBox()
+    {
+        var intervals = new[]
+        {
+            new { Display = "100", Value = 100 },
+            new { Display = "200", Value = 200 },
+            new { Display = "500", Value = 500 },
+            new { Display = "1000", Value = 1000 }
+        };
+
+        UpdateIntervalComboBox.ItemsSource = intervals;
+        UpdateIntervalComboBox.SelectedIndex = 1; // 200ms varsayılan
+    }
+    private void UpdateIntervalComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (UpdateIntervalComboBox.SelectedValue is int newInterval)
+        {
+            UPDATE_INTERVAL_MS = newInterval;
+
+            // Timer'ları yeni interval ile güncelle
+            _treeViewUpdateTimer.Interval = TimeSpan.FromMilliseconds(UPDATE_INTERVAL_MS);
+            _detailsUpdateTimer.Interval = TimeSpan.FromMilliseconds(UPDATE_INTERVAL_MS);
+        }
     }
 } // MainWindow class ends here
