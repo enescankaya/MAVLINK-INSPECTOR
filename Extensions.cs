@@ -13,38 +13,27 @@ public static class Extensions
 
     public static TreeViewItem FindOrCreateChild(this ItemsControl parent, string header, object tag, object? data = null)
     {
-        TreeViewItem? item = null;
+        var item = parent.Items.OfType<TreeViewItem>()
+                             .FirstOrDefault(item => item.Tag?.Equals(tag) == true);
 
-        parent.Dispatcher.Invoke(() =>
+        if (item == null)
         {
-            item = parent.Items.OfType<TreeViewItem>()
-                              .FirstOrDefault(i => i.Tag?.Equals(tag) == true);
-
-            if (item == null)
+            item = new TreeViewItem
             {
-                item = new TreeViewItem
-                {
-                    Tag = tag,
-                    DataContext = data,
-                    IsExpanded = true
-                };
+                Header = CreateTreeItemHeader(header),
+                Tag = tag,
+                DataContext = data,  // DataContext'i message olarak ayarla
+                IsExpanded = true
+            };
+            parent.Items.Add(item);
+            SortTreeItems(parent); // Yeni item eklendiğinde sırala
+        }
+        else if (item.Header.ToString() != header)
+        {
+            item.Header = CreateTreeItemHeader(header);
+        }
 
-                var headerPanel = CreateTreeItemHeader(header);
-                item.Header = headerPanel;
-                parent.Items.Add(item);
-            }
-            else
-            {
-                // Sadece header metnini güncelle
-                if (item.Header is StackPanel sp && sp.Children.Count > 1 &&
-                    sp.Children[1] is TextBlock tb)
-                {
-                    tb.Text = header;
-                }
-            }
-        });
-
-        return item!;
+        return item;
     }
 
     private static void SortTreeItems(ItemsControl parent)
@@ -85,26 +74,26 @@ public static class Extensions
             Margin = new Thickness(0, 2, 0, 2)
         };
 
-        var icon = new TextBlock
+        var treeSymbol = new TextBlock
         {
             Text = "▸",
             FontFamily = new FontFamily("Segoe UI"),
-            FontSize = 12,
-            Margin = new Thickness(0, 0, 6, 0),
+            FontSize = 13,
+            Margin = new Thickness(0, 0, 8, 0),
             VerticalAlignment = VerticalAlignment.Center,
-            Foreground = new SolidColorBrush(Colors.LightGray)
+            Foreground = new SolidColorBrush(Color.FromRgb(180, 180, 180))
         };
 
         var textBlock = new TextBlock
         {
             Text = text,
-            FontFamily = new FontFamily("Consolas"),
-            FontSize = 12,
+            FontFamily = new FontFamily("Cascadia Code, Consolas"),
+            FontSize = 13,
             VerticalAlignment = VerticalAlignment.Center,
             Foreground = new SolidColorBrush(Colors.White)
         };
 
-        stackPanel.Children.Add(icon);
+        stackPanel.Children.Add(treeSymbol);
         stackPanel.Children.Add(textBlock);
 
         return stackPanel;

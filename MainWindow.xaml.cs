@@ -398,26 +398,29 @@ public partial class MainWindow : Window
     {
         try
         {
+            // Benzersiz anahtar oluştur
             var messageKey = (uint)((message.sysid << 16) | (message.compid << 8) | message.msgid);
             var bps = _mavInspector.GetBps(message.sysid, message.compid, message.msgid);
             var header = FormatMessageHeader(message, rate, bps);
+
             var vehicleNode = GetOrCreateVehicleNode(message.sysid);
             var componentNode = GetOrCreateComponentNode(vehicleNode, message);
-            var msgNode = componentNode.FindOrCreateChild(header, message.msgid, message);  // message'ı DataContext olarak geçir
+            var msgNode = componentNode.FindOrCreateChild(header, messageKey, message);
 
-            // Header'ı güncelle ama DataContext'i koru
+            // Text ve renk güncellemesi
             if (msgNode.Header is StackPanel sp && sp.Children.Count > 1 &&
                 sp.Children[1] is TextBlock tb)
             {
                 tb.Text = header;
+
+                // Yeni rengi hesapla
+                var color = GenerateMessageColor(rate);
+                tb.Foreground = new SolidColorBrush(color);
             }
 
-            msgNode.DataContext = message;  // DataContext'i güncelle
+            // DataContext'i güncelle
+            msgNode.DataContext = message;
 
-            // Node'u renklendir
-            UpdateNodeColor(msgNode, message.msgid);
-
-            // Seçili mesajı güncelle
             if (IsSelectedMessage(message))
             {
                 UpdateMessageDetails(message);
@@ -425,6 +428,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            Debug.WriteLine($"UpdateTreeViewForMessage error: {ex.Message}");
         }
     }
 
@@ -437,14 +441,19 @@ public partial class MainWindow : Window
         return $"{message.msgtypename} ({rate:F1} Hz, {bps:F0} bps)";
     }
 
-    private void UpdateNodeColor(TreeViewItem node, uint msgId)
+    private void UpdateNodeColor(TreeViewItem node, byte sysid, byte compid, uint msgid, double rate)
     {
-        if (!_messageColors.TryGetValue(msgId, out var color))
+        // Mesaj için benzersiz bir anahtar oluştur
+        var messageKey = (uint)((sysid << 16) | (compid << 8) | msgid);
+
+        // Rengi yeniden hesapla veya cache'den al
+        if (!_messageColors.TryGetValue(messageKey, out var color))
         {
-            color = GenerateMessageColor(msgId);
-            _messageColors[msgId] = color;
+            color = GenerateMessageColor(rate);
+            _messageColors[messageKey] = color;
         }
 
+        // Node'un rengini güncelle
         if (node.Header is StackPanel sp && sp.Children.Count > 1 &&
             sp.Children[1] is TextBlock tb)
         {
@@ -452,70 +461,52 @@ public partial class MainWindow : Window
         }
     }
 
-    private Color GenerateMessageColor(uint msgId)
+    private Color GenerateMessageColor(double rate)
     {
         try
         {
-            var sysid = (byte)(msgId >> 16);
-            var compid = (byte)(msgId >> 8);
-            var mid = (byte)msgId;
-
-            double rate = _mavInspector.GetMessageRate(sysid, compid, msgId);
-
-            // Hz değerine göre renk geçişleri (0-50Hz arası)
-            // Düşük Hz (0-1): Kırmızı -> Turuncu
-            // Orta Hz (1-10): Turuncu -> Yeşil
-            // Yüksek Hz (10-50): Yeşil -> Mavi
-
-            const float brightness = 0.95f; // Sabit parlaklık
-            double hue;
-            float saturation;
-
-            if (rate < 1.0)
+            // Hz değerlerine göre doğrudan RGB karşılıkları
+            if (rate < 0.1) // Çok düşük Hz - Kırmızı
             {
-                // Kırmızı -> Turuncu (0-60 derece)
-                hue = (rate / 1.0) * 60.0 / 360.0;
-                saturation = 0.8f;
+                return Color.FromRgb(255, 0, 0); // Saf kırmızı
             }
-            else if (rate < 10.0)
+            else if (rate < 1.0) // 0.1 - 1 Hz arası - Kırmızıdan sarıya geçiş
             {
-                // Turuncu -> Yeşil (60-120 derece)
-                hue = ((rate - 1.0) / 9.0 * 60.0 + 60.0) / 360.0;
-                saturation = 0.7f;
+                return Color.FromRgb(255, 128, 0); // Turuncu (kırmızıdan sarıya geçiş)
             }
-            else
+            else if (rate < 10.0) // 1 - 10 Hz arası - Sarıya geçiş
             {
-                // Yeşil -> Mavi (120-240 derece)
-                var normalizedRate = Math.Min(rate, 50.0);
-                hue = ((normalizedRate - 10.0) / 40.0 * 120.0 + 120.0) / 360.0;
-                saturation = 0.6f;
+                return Color.FromRgb(255, 255, 0); // Saf sarı
             }
-
-            // HSV -> RGB dönüşümü
-            var hi = Convert.ToInt32(Math.Floor(hue * 6)) % 6;
-            var f = hue * 6 - Math.Floor(hue * 6);
-            var v = brightness;
-            var p = brightness * (1 - saturation);
-            var q = brightness * (1 - f * saturation);
-            var t = brightness * (1 - (1 - f) * saturation);
-
-            return hi switch
+            else if (rate < 32.0) // 10 - 32 Hz arası - Yeşile geçiş
             {
-                0 => Color.FromRgb(ToColorByte(v), ToColorByte(t), ToColorByte(p)),
-                1 => Color.FromRgb(ToColorByte(q), ToColorByte(v), ToColorByte(p)),
-                2 => Color.FromRgb(ToColorByte(p), ToColorByte(v), ToColorByte(t)),
-                3 => Color.FromRgb(ToColorByte(p), ToColorByte(q), ToColorByte(v)),
-                4 => Color.FromRgb(ToColorByte(t), ToColorByte(p), ToColorByte(v)),
-                _ => Color.FromRgb(ToColorByte(v), ToColorByte(p), ToColorByte(q))
-            };
+                return Color.FromRgb(128, 255, 0); // Yeşilimsi sarı
+            }
+            else if (rate < 48.0) // 32 - 48 Hz arası - Açık yeşile geçiş
+            {
+                return Color.FromRgb(0, 255, 0); // Saf yeşil
+            }
+            else if (rate < 64.0) // 48 - 64 Hz arası - Açık maviye geçiş
+            {
+                return Color.FromRgb(0, 255, 255); // Açık mavi (camgöbeği)
+            }
+            else if (rate < 100.0) // 64 - 100 Hz arası - Maviye geçiş
+            {
+                return Color.FromRgb(0, 128, 255); // Parlak mavi
+            }
+            else // 100+ Hz - Açık mavi ile mor arasında
+            {
+                return Color.FromRgb(128, 0, 255); // Mor tonları
+            }
         }
         catch
         {
-            return Colors.White;
+            return Color.FromRgb(255, 255, 255); // Hata durumunda parlak beyaz döndür
         }
     }
 
-    private static byte ToColorByte(double value) => (byte)(value * 255);
+
+
 
     private void Timer_Tick(object sender, EventArgs e)
     {
@@ -681,6 +672,9 @@ public partial class MainWindow : Window
                 // UI elementlerini temizle
                 Dispatcher.Invoke(() =>
                 {
+
+                    // Renk cache'ini temizle
+                    _messageColors.Clear();
                     treeView1.Items.Clear();
                     // Clear all message details fields
                     msgTypeText.Text = string.Empty;
@@ -777,18 +771,24 @@ public partial class MainWindow : Window
         if ((DateTime.Now - _lastTreeViewUpdate).TotalMilliseconds < UPDATE_INTERVAL_MS)
             return;
 
-        lock (_treeUpdateLock)
+        try
         {
-            // Tüm mesajları tek seferde güncelle
-            var messages = _mavInspector.GetPacketMessages().ToList();
-            foreach (var message in messages)
+            lock (_treeUpdateLock)
             {
-                var rate = _mavInspector.GetMessageRate(message.sysid, message.compid, message.msgid);
-                UpdateTreeViewForMessage(message, rate);
+                var messages = _mavInspector.GetPacketMessages().ToList();
+                foreach (var message in messages)
+                {
+                    var rate = _mavInspector.GetMessageRate(message.sysid, message.compid, message.msgid);
+                    UpdateTreeViewForMessage(message, rate);
+                }
             }
-        }
 
-        _lastTreeViewUpdate = DateTime.Now;
+            _lastTreeViewUpdate = DateTime.Now;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"UpdateTreeView error: {ex.Message}");
+        }
     }
 
     private void UpdateMessageDetailsIfNeeded()
