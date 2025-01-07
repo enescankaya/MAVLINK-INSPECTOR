@@ -266,7 +266,7 @@
                         <!-- Fields Section -->
                         <TextBlock Text="Message Fields" 
            FontWeight="SemiBold" 
-           Margin="5,10,5,5" 
+           Margin="5,5,5,5" 
            Foreground="{StaticResource TextColor}"
            FontSize="13"/>
 
@@ -318,7 +318,7 @@
                                                 <DataTemplate>
                                                     <TextBlock Text="{Binding Field}" 
                                      Foreground="{StaticResource TextColor}"
-                                     Padding="8,4"/>
+                                     Padding="0,10,0,0" VerticalAlignment="Bottom"/>
                                                 </DataTemplate>
                                             </GridViewColumn.CellTemplate>
                                         </GridViewColumn>
@@ -326,9 +326,9 @@
                                             <GridViewColumn.CellTemplate>
                                                 <DataTemplate>
                                                     <TextBlock Text="{Binding Value}" 
-                                     Foreground="{StaticResource AccentColor}"
-                                     Padding="8,4"
-                                     TextWrapping="Wrap"/>
+                                     Foreground="{StaticResource TextColor}"
+                                     Padding="0,10,0,0"
+                                     TextWrapping="Wrap" VerticalAlignment="Bottom"/>
                                                 </DataTemplate>
                                             </GridViewColumn.CellTemplate>
                                         </GridViewColumn>
@@ -337,7 +337,7 @@
                                                 <DataTemplate>
                                                     <TextBlock Text="{Binding Type}" 
                                      Foreground="#A0A0A0"
-                                     Padding="8,4"/>
+                                     Padding="0,10,0,0" VerticalAlignment="Bottom"/>
                                                 </DataTemplate>
                                             </GridViewColumn.CellTemplate>
                                         </GridViewColumn>
@@ -350,6 +350,7 @@
                                         <Setter Property="BorderThickness" Value="0"/>
                                         <Setter Property="Margin" Value="0"/>
                                         <Setter Property="Height" Value="32"/>
+                                        <Setter Property="VerticalAlignment" Value="Bottom"/>
                                         <Style.Triggers>
                                             <Trigger Property="IsMouseOver" Value="True">
                                                 <Setter Property="Background" Value="#3E3E42"/>
