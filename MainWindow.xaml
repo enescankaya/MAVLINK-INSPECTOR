@@ -159,18 +159,184 @@
             </GridSplitter>
 
             <!-- Message Details güncellemesi -->
-            <GroupBox Grid.Column="2" 
-                     Header="Message Details" 
-                     Background="{StaticResource PanelBackground}">
-                <TextBox Name="detailsTextBox"
-                         Background="{StaticResource ControlBackground}"
-                         Foreground="{StaticResource TextColor}"
-                         FontFamily="Cascadia Code, Consolas"
-                         FontSize="13"
-                         Padding="10"
-                         BorderThickness="0"
-                         IsReadOnly="True"/>
-            </GroupBox>
+            <GroupBox Grid.Column="2" Header="Message Details" Background="{StaticResource PanelBackground}" ScrollViewer.HorizontalScrollBarVisibility="Hidden" ScrollViewer.VerticalScrollBarVisibility="Hidden">
+                <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden" CanContentScroll="True">
+                    <StackPanel Margin="5">
+                        <!-- Header Section -->
+                        <Border Background="{StaticResource ControlBackground}" 
+                    CornerRadius="4" Padding="10" Margin="0,0,0,10">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="120"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="120"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="28"/>
+                                    <RowDefinition Height="28"/>
+                                    <RowDefinition Height="28"/>
+                                    <RowDefinition Height="28"/>
+                                    <RowDefinition Height="28"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Left Column - Existing Fields -->
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Message Type:" 
+                             Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" x:Name="msgTypeText"
+                             Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="System ID:" 
+                             Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="1" Grid.Column="1" x:Name="sysidText"
+                             Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Component ID:" 
+                             Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" x:Name="compidText"
+                             Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Message ID:" 
+                             Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="3" Grid.Column="1" x:Name="msgidText"
+                             Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Length:" 
+                             Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="4" Grid.Column="1" x:Name="lengthText"
+                             Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+
+                                <!-- Right Column - New Fields -->
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="Message Type Name:" 
+                             Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="0" Grid.Column="3" x:Name="msgTypeNameText"
+                             Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+
+                                <TextBlock Grid.Row="1" Grid.Column="2" Text="CRC16:" 
+                             Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="1" Grid.Column="3" x:Name="crc16Text"
+                             Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+
+                                <TextBlock Grid.Row="2" Grid.Column="2" Text="Sequence:" 
+                             Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="2" Grid.Column="3" x:Name="seqText"
+                             Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+
+                                <TextBlock Grid.Row="3" Grid.Column="2" Text="Header:" 
+                             Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="3" Grid.Column="3" x:Name="headerText"
+                             Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+
+                                <TextBlock Grid.Row="4" Grid.Column="2" Text="MAVLink Version:" 
+                             Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="4" Grid.Column="3" x:Name="isMavlink2Text"
+                             Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Fields Section -->
+                        <TextBlock Text="Message Fields" 
+           FontWeight="SemiBold" 
+           Margin="5,10,5,5" 
+           Foreground="{StaticResource TextColor}"
+           FontSize="13"/>
+
+                        <Border Background="{StaticResource ControlBackground}" 
+        CornerRadius="4" 
+        Margin="0,5"
+        BorderBrush="{StaticResource BorderColor}"
+        BorderThickness="1">
+                            <ListView x:Name="fieldsListView" 
+              Background="Transparent"
+              BorderThickness="0"
+              Margin="2"
+              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+              ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                <ListView.Resources>
+                                    <!-- GridViewColumnHeader Style -->
+                                    <Style TargetType="GridViewColumnHeader">
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Setter Property="Foreground" Value="#A0A0A0"/>
+                                        <Setter Property="Height" Value="32"/>
+                                        <Setter Property="Padding" Value="8,0"/>
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="GridViewColumnHeader">
+                                                    <Border Background="{TemplateBinding Background}"
+                                    BorderBrush="{StaticResource BorderColor}"
+                                    BorderThickness="0,0,0,1"
+                                    Padding="{TemplateBinding Padding}">
+                                                        <TextBlock Text="{TemplateBinding Content}"
+                                         Foreground="{TemplateBinding Foreground}"
+                                         VerticalAlignment="Center"
+                                         FontSize="12"/>
+                                                    </Border>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#3E3E42"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ListView.Resources>
+
+                                <ListView.View>
+                                    <GridView>
+                                        <GridViewColumn Header="Field" Width="140">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Field}" 
+                                     Foreground="{StaticResource TextColor}"
+                                     Padding="8,4"/>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Header="Value" Width="180">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Value}" 
+                                     Foreground="{StaticResource AccentColor}"
+                                     Padding="8,4"
+                                     TextWrapping="Wrap"/>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Header="Type" Width="120">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Type}" 
+                                     Foreground="#A0A0A0"
+                                     Padding="8,4"/>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                    </GridView>
+                                </ListView.View>
+
+                                <ListView.ItemContainerStyle>
+                                    <Style TargetType="ListViewItem">
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Setter Property="BorderThickness" Value="0"/>
+                                        <Setter Property="Margin" Value="0"/>
+                                        <Setter Property="Height" Value="32"/>
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#3E3E42"/>
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter Property="Background" Value="#094771"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ListView.ItemContainerStyle>
+                            </ListView>
+                        </Border>
+                    </StackPanel>
+    </ScrollViewer>
+</GroupBox>
+
         </Grid>
 
         <!-- Status bar güncellemesi -->

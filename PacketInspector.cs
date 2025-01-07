@@ -135,59 +135,6 @@ namespace MavlinkInspector
             return totalBits / timeSpan;
         }
 
-        public double GetBps(byte sysid, byte compid)
-        {
-            var id = GetID(sysid, compid);
-            var end = DateTime.Now;
-            var start = end.AddSeconds(-3);
-
-            lock (_lock)
-            {
-                if (!_bps.TryGetValue(id, out var rates))
-                    return 0;
-
-                try
-                {
-                    var data = rates.Values.SelectMany(list => list).ToList();
-                    var starttime = data.First().dateTime;
-                    starttime = starttime < start ? start : starttime;
-                    var msgbps = data.Where(a => a.dateTime > start && a.dateTime < end)
-                                    .Sum(a => a.value / (end - starttime).TotalSeconds);
-                    return msgbps * 8; // Convert to bits
-                }
-                catch
-                {
-                    return 0;
-                }
-            }
-        }
-
-        public double GetPacketRate(byte sysid, byte compid)
-        {
-            var id = GetID(sysid, compid);
-            var now = DateTime.UtcNow;
-            var cutoff = now.AddMilliseconds(-MAX_HISTORY_TIME_MS);
-
-            if (!_rate.TryGetValue(id, out var rates))
-                return 0;
-
-            lock (_lock)
-            {
-                var allPackets = rates.Values
-                    .SelectMany(q => q.Where(p => p.dateTime >= cutoff))
-                    .ToList();
-
-                if (!allPackets.Any())
-                    return 0;
-
-                var timeSpan = (now - allPackets.Min(p => p.dateTime)).TotalSeconds;
-                if (timeSpan <= 0)
-                    return 0;
-
-                return allPackets.Count / timeSpan;
-            }
-        }
-
         public void Add(byte sysid, byte compid, uint msgid, T message, int size)
         {
             var id = GetID(sysid, compid);

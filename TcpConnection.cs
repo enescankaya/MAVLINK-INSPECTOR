@@ -90,7 +90,6 @@ public class TcpConnection : IConnection
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"Stream close error: {ex.Message}");
                 }
                 _stream = null;
             }
@@ -104,7 +103,6 @@ public class TcpConnection : IConnection
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"Client close error: {ex.Message}");
                 }
                 _client = null;
             }

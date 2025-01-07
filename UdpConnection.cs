@@ -52,14 +52,12 @@ public class UdpConnection : IConnection
             {
                 // Create new client bound to the port
                 _client = new UdpClient(_port);
-                Debug.WriteLine($"UDP listening on port {_port}");
 
                 _readCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 _ = ReadLoopAsync(_readCts.Token);
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"UDP bind error: {ex.Message}");
                 throw;
             }
         }
@@ -78,7 +76,6 @@ public class UdpConnection : IConnection
                 try
                 {
                     var result = await _client.ReceiveAsync(ct);
-                    Debug.WriteLine($"UDP received {result.Buffer.Length} bytes from {result.RemoteEndPoint}");
 
                     if (result.Buffer.Length > 0)
                     {
@@ -91,7 +88,6 @@ public class UdpConnection : IConnection
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"UDP receive error: {ex.Message}");
                     await Task.Delay(100, ct); // Prevent tight loop on error
                 }
             }
@@ -99,7 +95,6 @@ public class UdpConnection : IConnection
         finally
         {
             _dataChannel.Writer.TryComplete();
-            Debug.WriteLine("UDP read loop ended");
         }
     }
 
@@ -116,11 +111,9 @@ public class UdpConnection : IConnection
                 _client = null;
             }
             _dataChannel.Writer.TryComplete();
-            Debug.WriteLine("UDP disconnected");
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"UDP disconnect error: {ex.Message}");
         }
         finally
         {
@@ -146,12 +139,10 @@ public class UdpConnection : IConnection
             if (_remoteEndPoint != null)
             {
                 await _client.SendAsync(data, data.Length, _remoteEndPoint);
-                Debug.WriteLine($"UDP sent {data.Length} bytes to {_remoteEndPoint}");
             }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"UDP send error: {ex.Message}");
         }
     }
 }

@@ -65,7 +65,6 @@ public class ConnectionManager : IAsyncDisposable
                     }
                     catch (Exception ex)
                     {
-                        Debug.WriteLine($"Message parse error: {ex.Message}");
                     }
                 }
             }
@@ -89,7 +88,6 @@ public class ConnectionManager : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Send message error: {ex.Message}");
         }
     }
 

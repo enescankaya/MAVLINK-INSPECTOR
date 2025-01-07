@@ -100,7 +100,7 @@ public partial class MainWindow : Window
             _connectionManager.OnMessageReceived -= HandleMessage;
             _connectionManager.OnMessageSent -= HandleMessage;
             RemoveGCSTrafficFromTreeView(); // GCS trafiğini kaldır
-            ResetButton_Click(s,e);
+            ResetButton_Click(s, e);
         };
 
         treeView1.SelectedItemChanged += TreeView_SelectedItemChanged;
@@ -147,7 +147,6 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error removing GCS traffic: {ex.Message}");
         }
     }
 
@@ -168,7 +167,6 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error refreshing TreeView: {ex.Message}");
         }
     }
 
@@ -251,8 +249,6 @@ public partial class MainWindow : Window
 
         try
         {
-            // Debug için log ekle
-            Debug.WriteLine("Starting message processing...");
 
             await foreach (var data in _connectionManager.DataChannel.ReadAllAsync())
             {
@@ -271,7 +267,6 @@ public partial class MainWindow : Window
                             continue;
                         }
 
-                        Debug.WriteLine($"Received message: SysID={packet.sysid}, CompID={packet.compid}, MsgID={packet.msgid}");
 
                         // İşleme için UI thread'e gönder
                         await Dispatcher.InvokeAsync(() =>
@@ -285,7 +280,6 @@ public partial class MainWindow : Window
                     }
                     catch (Exception ex)
                     {
-                        Debug.WriteLine($"Error parsing packet: {ex.Message}");
                         buffer.RemoveAt(0);
                     }
                 }
@@ -299,7 +293,6 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"ProcessIncomingDataAsync error: {ex.Message}");
             await DisconnectAsync();
         }
     }
@@ -339,22 +332,6 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"ProcessMessage error: {ex.Message}");
-        }
-    }
-
-    private async Task UpdateUIFromQueueAsync(ConcurrentQueue<MAVLink.MAVLinkMessage> messageQueue)
-    {
-        while (!_isDisposed)
-        {
-            if (messageQueue.TryDequeue(out var message))
-            {
-                await ProcessMessageAsync(message);
-            }
-            else
-            {
-                await Task.Delay(1); // CPU kullanımını azalt
-            }
         }
     }
 
@@ -423,10 +400,6 @@ public partial class MainWindow : Window
         {
             var messageKey = (uint)((message.sysid << 16) | (message.compid << 8) | message.msgid);
             var bps = _mavInspector.GetBps(message.sysid, message.compid, message.msgid);
-
-            // Debug için mesaj bilgilerini yazdır
-            Debug.WriteLine($"Updating TreeView - Msg: {message.msgtypename}, Rate: {rate:F1} Hz, BPS: {bps:F0}");
-
             var header = FormatMessageHeader(message, rate, bps);
             var vehicleNode = GetOrCreateVehicleNode(message.sysid);
             var componentNode = GetOrCreateComponentNode(vehicleNode, message);
@@ -452,7 +425,6 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"UpdateTreeViewForMessage error: {ex.Message}");
         }
     }
 
@@ -482,39 +454,68 @@ public partial class MainWindow : Window
 
     private Color GenerateMessageColor(uint msgId)
     {
-        // Altın oran ile renk dağılımı (0-1 arası)
-        var hue = (msgId * 0.618034f) % 1.0f;
-
-        // Siyah üstünde açık ve rahatça görülebilir renkler için ayarlamalar
-        const float saturation = 0.3f;  // Daha düşük doygunluk
-        const float brightness = 0.99f; // Daha yüksek parlaklık
-
-        // Renk çarkını 6 parçaya bölerek açık renkler üret
-        int segment = Convert.ToInt32(Math.Floor(hue * 6));
-        float f = hue * 6 - segment;
-
-        // RGB bileşenlerini hesapla
-        float p = brightness * (1 - saturation);
-        float q = brightness * (1 - f * saturation);
-        float t = brightness * (1 - (1 - f) * saturation);
-
-        // RGB değerlerini byte'a dönüştür
-        byte vb = (byte)(brightness * 255);
-        byte pb = (byte)(p * 255);
-        byte tb = (byte)(t * 255);
-        byte qb = (byte)(q * 255);
-
-        // Renk çarkının hangi segmentinde olduğumuza göre renk döndür
-        return segment switch
+        try
         {
-            0 => Color.FromRgb(vb, tb, pb),  // Kırmızı -> Sarı
-            1 => Color.FromRgb(qb, vb, pb),  // Sarı -> Yeşil
-            2 => Color.FromRgb(pb, vb, tb),  // Yeşil -> Cyan
-            3 => Color.FromRgb(pb, qb, vb),  // Cyan -> Mavi
-            4 => Color.FromRgb(tb, pb, vb),  // Mavi -> Magenta
-            _ => Color.FromRgb(vb, pb, qb)   // Magenta -> Kırmızı
-        };
+            var sysid = (byte)(msgId >> 16);
+            var compid = (byte)(msgId >> 8);
+            var mid = (byte)msgId;
+
+            double rate = _mavInspector.GetMessageRate(sysid, compid, msgId);
+
+            // Hz değerine göre renk geçişleri (0-50Hz arası)
+            // Düşük Hz (0-1): Kırmızı -> Turuncu
+            // Orta Hz (1-10): Turuncu -> Yeşil
+            // Yüksek Hz (10-50): Yeşil -> Mavi
+
+            const float brightness = 0.95f; // Sabit parlaklık
+            double hue;
+            float saturation;
+
+            if (rate < 1.0)
+            {
+                // Kırmızı -> Turuncu (0-60 derece)
+                hue = (rate / 1.0) * 60.0 / 360.0;
+                saturation = 0.8f;
+            }
+            else if (rate < 10.0)
+            {
+                // Turuncu -> Yeşil (60-120 derece)
+                hue = ((rate - 1.0) / 9.0 * 60.0 + 60.0) / 360.0;
+                saturation = 0.7f;
+            }
+            else
+            {
+                // Yeşil -> Mavi (120-240 derece)
+                var normalizedRate = Math.Min(rate, 50.0);
+                hue = ((normalizedRate - 10.0) / 40.0 * 120.0 + 120.0) / 360.0;
+                saturation = 0.6f;
+            }
+
+            // HSV -> RGB dönüşümü
+            var hi = Convert.ToInt32(Math.Floor(hue * 6)) % 6;
+            var f = hue * 6 - Math.Floor(hue * 6);
+            var v = brightness;
+            var p = brightness * (1 - saturation);
+            var q = brightness * (1 - f * saturation);
+            var t = brightness * (1 - (1 - f) * saturation);
+
+            return hi switch
+            {
+                0 => Color.FromRgb(ToColorByte(v), ToColorByte(t), ToColorByte(p)),
+                1 => Color.FromRgb(ToColorByte(q), ToColorByte(v), ToColorByte(p)),
+                2 => Color.FromRgb(ToColorByte(p), ToColorByte(v), ToColorByte(t)),
+                3 => Color.FromRgb(ToColorByte(p), ToColorByte(q), ToColorByte(v)),
+                4 => Color.FromRgb(ToColorByte(t), ToColorByte(p), ToColorByte(v)),
+                _ => Color.FromRgb(ToColorByte(v), ToColorByte(p), ToColorByte(q))
+            };
+        }
+        catch
+        {
+            return Colors.White;
+        }
     }
+
+    private static byte ToColorByte(double value) => (byte)(value * 255);
 
     private void Timer_Tick(object sender, EventArgs e)
     {
@@ -540,33 +541,92 @@ public partial class MainWindow : Window
         {
             if (message == null)
             {
-                detailsTextBox.Clear();
+                // Clear all fields when no message is selected
+                Dispatcher.Invoke(() =>
+                {
+                    // Clear existing fields
+                    msgTypeText.Text = string.Empty;
+                    sysidText.Text = string.Empty;
+                    compidText.Text = string.Empty;
+                    msgidText.Text = string.Empty;
+                    lengthText.Text = string.Empty;
+
+                    // Clear new fields
+                    msgTypeNameText.Text = string.Empty;
+                    crc16Text.Text = string.Empty;
+                    seqText.Text = string.Empty;
+                    headerText.Text = string.Empty;
+                    isMavlink2Text.Text = string.Empty;
+
+                    fieldsListView.Items.Clear();
+                });
                 return;
             }
 
-            Debug.WriteLine($"Updating details for message: {message.msgtypename}");
             _currentlyDisplayedMessage = message;
 
-            // Extensions.UpdateMessageDetails metodunu çağır
-            detailsTextBox.Dispatcher.Invoke(() =>
+            Dispatcher.Invoke(() =>
             {
                 try
                 {
-                    detailsTextBox.UpdateMessageDetails(message);
+                    // Update existing header information
+                    msgTypeText.Text = message.GetType().Name;
+                    sysidText.Text = message.sysid.ToString();
+                    compidText.Text = message.compid.ToString();
+                    msgidText.Text = message.msgid.ToString();
+                    lengthText.Text = message.Length.ToString();
+
+                    // Update new header information
+                    msgTypeNameText.Text = message.msgtypename;
+                    crc16Text.Text = message.crc16.ToString("X4"); // Hexadecimal format
+                    seqText.Text = message.seq.ToString();
+                    headerText.Text = message.header.ToString();
+                    if (message.ismavlink2) {
+                        isMavlink2Text.Text = "Mavlink V2";
+                    }
+                    else
+                    {
+                        isMavlink2Text.Text = "Mavlink V1";
+                    }
+
+                    // Clear existing fields
+                    fieldsListView.Items.Clear();
+
+                    var fields = message.data.GetType().GetFields();
+                    // Add each payload field to the ListView
+                    foreach (var field in fields)
+                    {
+                        var value = field.GetValue(message.data);
+                        var typeName = field.FieldType.ToString();
+
+                        var item = new
+                        {
+                            Field = field.Name,
+                            Value = value,
+                            Type = typeName
+                        };
+
+                        fieldsListView.Items.Add(item);
+                    }
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"Error updating message details: {ex.Message}");
-                    detailsTextBox.Text = $"Error displaying message details: {ex.Message}";
+                    // Show error in the fields list
+                    fieldsListView.Items.Clear();
+                    fieldsListView.Items.Add(new
+                    {
+                        Name = "Error",
+                        Value = ex.Message,
+                        Type = "Exception"
+                    });
                 }
             });
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Debug.WriteLine($"Error in UpdateMessageDetails: {ex.Message}");
+            // Log or handle the outer exception if needed
         }
     }
-
     private void TreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
         try
@@ -576,14 +636,12 @@ public partial class MainWindow : Window
                 // TreeViewItem'ın DataContext'ini kontrol et (mesaj burada saklanıyor)
                 if (item.DataContext is MAVLink.MAVLinkMessage message)
                 {
-                    Debug.WriteLine($"Selected message: {message.msgtypename}");
                     UpdateMessageDetails(message);
                 }
             }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error in TreeView selection: {ex.Message}");
         }
     }
 
@@ -623,8 +681,13 @@ public partial class MainWindow : Window
                 Dispatcher.Invoke(() =>
                 {
                     treeView1.Items.Clear();
-                    detailsTextBox.Clear();
-                    statusMessagesText.Text = "Messages: 0";
+                    // Clear all message details fields
+                    msgTypeText.Text = string.Empty;
+                    sysidText.Text = string.Empty;
+                    compidText.Text = string.Empty;
+                    msgidText.Text = string.Empty;
+                    lengthText.Text = string.Empty;
+                    fieldsListView.Items.Clear(); statusMessagesText.Text = "Messages: 0";
                     statusRateText.Text = "Rate: 0 msg/s";
                 });
 
@@ -650,15 +713,12 @@ public partial class MainWindow : Window
                     });
 
                     // Mevcut bağlantıyı koru, mesaj almaya devam et
-                    Debug.WriteLine("Connection active, continuing to receive messages...");
                 }
 
-                Debug.WriteLine("Reset completed - System ready for new messages");
             }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error during reset: {ex.Message}");
             MessageBox.Show("Reset operation encountered an error but connection is maintained.",
                            "Reset Warning",
                            MessageBoxButton.OK,
