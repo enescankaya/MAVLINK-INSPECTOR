@@ -8,6 +8,7 @@ using System.Windows.Threading;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.ComponentModel;
+using System.Windows.Input;
 
 namespace MavlinkInspector;
 
@@ -44,6 +45,16 @@ public partial class MainWindow : Window
     private DateTime _lastDetailsUpdate = DateTime.MinValue;
     private int UPDATE_INTERVAL_MS = 200;
 
+    // Sınıf seviyesinde yeni değişken ekle
+    private object? _selectedFieldItem = null;
+
+    // Sınıf seviyesinde yeni değişkenler ekle
+    private string _treeViewSearchText = "";
+    private string _fieldsSearchText = "";
+    private DateTime _lastTreeViewKeyPress = DateTime.MinValue;
+    private DateTime _lastFieldsKeyPress = DateTime.MinValue;
+    private const int SEARCH_TIMEOUT_MS = 300; // 1 saniye
+
     private class MessageUpdateInfo
     {
         public DateTime LastUpdate { get; set; }
@@ -61,6 +72,7 @@ public partial class MainWindow : Window
         InitializeUpdateIntervalComboBox();
         // Timer'ları konfigüre et
         ConfigureUpdateTimers();
+        InitializeSearchFeatures();
     }
 
     private void InitializeUI()
@@ -74,6 +86,7 @@ public partial class MainWindow : Window
 
         if (PortComboBox.Items.Count > 0)
             PortComboBox.SelectedIndex = 0;
+
     }
 
     private void SetupTimer()
@@ -87,20 +100,18 @@ public partial class MainWindow : Window
     {
         _mavInspector.NewSysidCompid += (s, e) => Dispatcher.BeginInvoke(UpdateSystemList);
 
-        // GCS traffic checkbox event handler
         ShowGCSTraffic.Checked += (s, e) =>
         {
             _connectionManager.OnMessageReceived += HandleMessage;
             _connectionManager.OnMessageSent += HandleMessage;
-            RefreshTreeView(); // TreeView'i yenile
+            RefreshTreeView();
         };
 
         ShowGCSTraffic.Unchecked += (s, e) =>
         {
             _connectionManager.OnMessageReceived -= HandleMessage;
             _connectionManager.OnMessageSent -= HandleMessage;
-            RemoveGCSTrafficFromTreeView(); // GCS trafiğini kaldır
-            ResetButton_Click(s, e);
+            RemoveGCSTrafficFromTreeView();
         };
 
         treeView1.SelectedItemChanged += TreeView_SelectedItemChanged;
@@ -111,42 +122,15 @@ public partial class MainWindow : Window
     {
         try
         {
-            var itemsToRemove = new List<TreeViewItem>();
-
-            // Tüm Vehicle node'larını kontrol et
-            foreach (TreeViewItem vehicleNode in treeView1.Items)
+            Dispatcher.Invoke(() =>
             {
-                if (vehicleNode.Tag is byte sysid && sysid == 255)
-                {
-                    itemsToRemove.Add(vehicleNode);
-                    continue;
-                }
-
-                // Component node'larını kontrol et
-                var componentItemsToRemove = new List<TreeViewItem>();
-                foreach (TreeViewItem componentNode in vehicleNode.Items)
-                {
-                    if (componentNode.Tag is int tag && (tag >> 8) == 255)
-                    {
-                        componentItemsToRemove.Add(componentNode);
-                    }
-                }
-
-                // Component node'larını kaldır
-                foreach (var componentNode in componentItemsToRemove)
-                {
-                    componentNode.Items.Remove(componentNode);
-                }
-            }
-
-            // Vehicle node'larını kaldır
-            foreach (var item in itemsToRemove)
-            {
-                treeView1.Items.Remove(item);
-            }
+                treeView1.Items.Clear(); // Tüm mesajları temizle
+                RefreshTreeView(); // Mesajları yeniden yükle
+            });
         }
         catch (Exception ex)
         {
+            Debug.WriteLine($"Remove GCS Traffic Error: {ex.Message}");
         }
     }
 
@@ -154,19 +138,19 @@ public partial class MainWindow : Window
     {
         try
         {
-            // Tüm mesajları yeniden yükle
-            var messages = _mavInspector.GetPacketMessages().ToList();
-            foreach (var message in messages)
+            Dispatcher.Invoke(() =>
             {
-                if (ShowGCSTraffic.IsChecked == true || message.sysid != 255)
+                var messages = _mavInspector.GetPacketMessages().ToList();
+                foreach (var message in messages)
                 {
                     var rate = _mavInspector.GetMessageRate(message.sysid, message.compid, message.msgid);
                     UpdateTreeViewForMessage(message, rate);
                 }
-            }
+            });
         }
         catch (Exception ex)
         {
+            Debug.WriteLine($"Refresh TreeView Error: {ex.Message}");
         }
     }
 
@@ -309,29 +293,25 @@ public partial class MainWindow : Window
     {
         try
         {
-            // GCS trafiği kontrolü
-            if (message.sysid == 255 && !ShowGCSTraffic.IsChecked.GetValueOrDefault())
-                return;
-
+            // Tüm mesajları işle, hiç kontrol yapma
             _mavInspector.Add(message.sysid, message.compid, message.msgid, message, message.Length);
 
             Interlocked.Increment(ref _totalMessages);
             Interlocked.Increment(ref _messagesSinceLastUpdate);
 
-            // Message queue'ya ekle
             lock (_messageQueue)
             {
                 _messageQueue.Enqueue(message);
             }
 
-            // Eğer bu mesaj şu an seçili olan mesajsa, detayları güncelle
             if (IsSelectedMessage(message))
             {
                 Dispatcher.InvokeAsync(() => UpdateMessageDetails(message));
             }
         }
-        catch (Exception ex)
+        catch
         {
+            // Hata durumunda sessizce devam et
         }
     }
 
@@ -496,7 +476,7 @@ public partial class MainWindow : Window
             }
             else // 100+ Hz - Açık mavi ile mor arasında
             {
-                return Color.FromRgb(128, 0, 255); // Mor tonları
+                return Color.FromRgb(220, 220, 220); //  tonları
             }
         }
         catch
@@ -551,6 +531,7 @@ public partial class MainWindow : Window
 
                     fieldsListView.Items.Clear();
                 });
+                _selectedFieldItem = null;
                 return;
             }
 
@@ -582,6 +563,7 @@ public partial class MainWindow : Window
                     }
 
                     // Clear existing fields
+                    var currentSelection = _selectedFieldItem;
                     fieldsListView.Items.Clear();
 
                     var fields = message.data.GetType().GetFields();
@@ -599,6 +581,14 @@ public partial class MainWindow : Window
                         };
 
                         fieldsListView.Items.Add(item);
+
+                        // Eğer bu önceden seçili olan item ise, tekrar seç
+                        if (currentSelection != null &&
+                            item.Field == (currentSelection.GetType().GetProperty("Field")?.GetValue(currentSelection) as string))
+                        {
+                            fieldsListView.SelectedItem = item;
+                            _selectedFieldItem = item;
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -830,6 +820,120 @@ public partial class MainWindow : Window
             // Timer'ları yeni interval ile güncelle
             _treeViewUpdateTimer.Interval = TimeSpan.FromMilliseconds(UPDATE_INTERVAL_MS);
             _detailsUpdateTimer.Interval = TimeSpan.FromMilliseconds(UPDATE_INTERVAL_MS);
+        }
+    }
+
+    // ListView'in SelectionChanged event handler'ını ekle
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        fieldsListView.SelectionChanged += FieldsListView_SelectionChanged;
+    }
+
+    private void FieldsListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (fieldsListView.SelectedItem != null)
+        {
+            _selectedFieldItem = fieldsListView.SelectedItem;
+        }
+    }
+
+    private void InitializeSearchFeatures()
+    {
+        // TreeView için klavye olayını ekle
+        treeView1.KeyDown += TreeView_KeyDown;
+        // ListView için klavye olayını ekle
+        fieldsListView.KeyDown += FieldsListView_KeyDown;
+    }
+
+    private void TreeView_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (!char.IsLetterOrDigit((char)KeyInterop.VirtualKeyFromKey(e.Key)))
+            return;
+
+        var now = DateTime.Now;
+        if ((now - _lastTreeViewKeyPress).TotalMilliseconds > SEARCH_TIMEOUT_MS)
+        {
+            _treeViewSearchText = "";
+        }
+
+        _treeViewSearchText += e.Key.ToString().ToLower();
+        _lastTreeViewKeyPress = now;
+
+        SearchInTreeView(_treeViewSearchText);
+        e.Handled = true;
+    }
+
+    private void SearchInTreeView(string searchText)
+    {
+        if (string.IsNullOrEmpty(searchText))
+            return;
+
+        var allItems = GetAllTreeViewItems(treeView1);
+        var matchingItem = allItems.FirstOrDefault(item =>
+        {
+            if (item.Header is StackPanel sp && sp.Children.Count > 1 &&
+                sp.Children[1] is TextBlock tb)
+            {
+                return tb.Text.ToLower().StartsWith(searchText);
+            }
+            return false;
+        });
+
+        if (matchingItem != null)
+        {
+            matchingItem.IsSelected = true;
+            matchingItem.BringIntoView();
+        }
+    }
+
+    private IEnumerable<TreeViewItem> GetAllTreeViewItems(ItemsControl parent)
+    {
+        for (int i = 0; i < parent.Items.Count; i++)
+        {
+            var item = parent.Items[i] as TreeViewItem;
+            if (item == null) continue;
+
+            yield return item;
+
+            foreach (var child in GetAllTreeViewItems(item))
+            {
+                yield return child;
+            }
+        }
+    }
+
+    private void FieldsListView_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (!char.IsLetterOrDigit((char)KeyInterop.VirtualKeyFromKey(e.Key)))
+            return;
+
+        var now = DateTime.Now;
+        if ((now - _lastFieldsKeyPress).TotalMilliseconds > SEARCH_TIMEOUT_MS)
+        {
+            _fieldsSearchText = "";
+        }
+
+        _fieldsSearchText += e.Key.ToString().ToLower();
+        _lastFieldsKeyPress = now;
+
+        SearchInFieldsList(_fieldsSearchText);
+        e.Handled = true;
+    }
+
+    private void SearchInFieldsList(string searchText)
+    {
+        if (string.IsNullOrEmpty(searchText))
+            return;
+
+        var items = fieldsListView.Items.Cast<dynamic>();
+        var matchingItem = items.FirstOrDefault(item =>
+            item.Field.ToString().ToLower().StartsWith(searchText));
+
+        if (matchingItem != null)
+        {
+            fieldsListView.SelectedItem = matchingItem;
+            fieldsListView.ScrollIntoView(matchingItem);
         }
     }
 } // MainWindow class ends here
