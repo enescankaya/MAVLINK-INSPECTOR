@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("MavlinkInspector")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+de57e21d04419e59d29e821cce23f10fffc280c2")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e7eb2d09824ded0507f0d6c7e2df9fc1a09a4bcd")]
 [assembly: System.Reflection.AssemblyProductAttribute("MavlinkInspector")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MavlinkInspector")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

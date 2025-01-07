@@ -131,7 +131,7 @@
                       Padding="5"
                       VirtualizingStackPanel.IsVirtualizing="True"
                       VirtualizingStackPanel.VirtualizationMode="Recycling"
-                      SelectedItemChanged="TreeView_SelectedItemChanged">
+                      SelectedItemChanged="TreeView_SelectedItemChanged" ScrollViewer.HorizontalScrollBarVisibility="Hidden" ScrollViewer.VerticalScrollBarVisibility="Hidden">
                 <TreeView.Resources>
                     <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" 
                                     Color="#44FFFFFF"/>
@@ -169,9 +169,7 @@
                          FontSize="13"
                          Padding="10"
                          BorderThickness="0"
-                         IsReadOnly="True"
-                         VerticalScrollBarVisibility="Auto"
-                         HorizontalScrollBarVisibility="Auto"/>
+                         IsReadOnly="True"/>
             </GroupBox>
         </Grid>
 

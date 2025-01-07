@@ -118,7 +118,7 @@ public static class Extensions
             if (messageInfo.type != null)
             {
                 sb.AppendLine("Fields:");
-                sb.AppendLine("Name                    Value                   Type");
+                sb.AppendLine("Name                    Value             Type");
                 sb.AppendLine("----------------------------------------------------");
 
                 foreach (var field in messageInfo.type.GetFields())

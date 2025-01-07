@@ -23,15 +23,12 @@ public partial class MainWindow : Window
     private int _messagesSinceLastUpdate;
     private ConcurrentDictionary<uint, DateTime> _lastUpdateTime = new();
     private readonly object _updateLock = new();
-    private const int UPDATE_INTERVAL_MS = 100;
     private ConcurrentDictionary<uint, MessageUpdateInfo> _messageUpdateInfo = new();
-    private const int UI_UPDATE_INTERVAL_MS = 100;
     private readonly object _treeUpdateLock = new();
     private MAVLink.MAVLinkMessage? _currentlyDisplayedMessage;
-    private readonly DispatcherTimer _detailsUpdateTimer = new();
     private const int MESSAGE_BUFFER_SIZE = 1024 * 16;
     private const int UI_UPDATE_THRESHOLD = 100; // ms
-    private const int MAX_TREE_ITEMS = 1000;
+    private const int MAX_TREE_ITEMS = 1800;
     private DateTime _lastUIUpdate = DateTime.MinValue;
     private bool _isDisposed;
 
@@ -39,7 +36,13 @@ public partial class MainWindow : Window
     private const int UI_BATCH_SIZE = 10;
     private const int UI_UPDATE_DELAY_MS = 50;
     private readonly Queue<MAVLink.MAVLinkMessage> _messageQueue = new();
-    private readonly DispatcherTimer _uiUpdateTimer;
+
+    // Yeni timer değişkenleri ekle
+    private readonly DispatcherTimer _treeViewUpdateTimer = new();
+    private readonly DispatcherTimer _detailsUpdateTimer = new();
+    private DateTime _lastTreeViewUpdate = DateTime.MinValue;
+    private DateTime _lastDetailsUpdate = DateTime.MinValue;
+    private const int UPDATE_INTERVAL_MS = 200;
 
     private class MessageUpdateInfo
     {
@@ -56,13 +59,8 @@ public partial class MainWindow : Window
         SetupMessageHandling();
         SetupDetailsTimer();
 
-        // UI güncellemelerini toplu yap
-        _uiUpdateTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromMilliseconds(UI_UPDATE_DELAY_MS)
-        };
-        _uiUpdateTimer.Tick += ProcessMessageQueue;
-        _uiUpdateTimer.Start();
+        // Timer'ları konfigüre et
+        ConfigureUpdateTimers();
     }
 
     private void InitializeUI()
@@ -94,15 +92,84 @@ public partial class MainWindow : Window
         {
             _connectionManager.OnMessageReceived += HandleMessage;
             _connectionManager.OnMessageSent += HandleMessage;
+            RefreshTreeView(); // TreeView'i yenile
         };
 
         ShowGCSTraffic.Unchecked += (s, e) =>
         {
             _connectionManager.OnMessageReceived -= HandleMessage;
             _connectionManager.OnMessageSent -= HandleMessage;
+            RemoveGCSTrafficFromTreeView(); // GCS trafiğini kaldır
+            ResetButton_Click(s,e);
         };
 
         treeView1.SelectedItemChanged += TreeView_SelectedItemChanged;
+    }
+
+    // Yeni metodlar ekle
+    private void RemoveGCSTrafficFromTreeView()
+    {
+        try
+        {
+            var itemsToRemove = new List<TreeViewItem>();
+
+            // Tüm Vehicle node'larını kontrol et
+            foreach (TreeViewItem vehicleNode in treeView1.Items)
+            {
+                if (vehicleNode.Tag is byte sysid && sysid == 255)
+                {
+                    itemsToRemove.Add(vehicleNode);
+                    continue;
+                }
+
+                // Component node'larını kontrol et
+                var componentItemsToRemove = new List<TreeViewItem>();
+                foreach (TreeViewItem componentNode in vehicleNode.Items)
+                {
+                    if (componentNode.Tag is int tag && (tag >> 8) == 255)
+                    {
+                        componentItemsToRemove.Add(componentNode);
+                    }
+                }
+
+                // Component node'larını kaldır
+                foreach (var componentNode in componentItemsToRemove)
+                {
+                    componentNode.Items.Remove(componentNode);
+                }
+            }
+
+            // Vehicle node'larını kaldır
+            foreach (var item in itemsToRemove)
+            {
+                treeView1.Items.Remove(item);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error removing GCS traffic: {ex.Message}");
+        }
+    }
+
+    private void RefreshTreeView()
+    {
+        try
+        {
+            // Tüm mesajları yeniden yükle
+            var messages = _mavInspector.GetPacketMessages().ToList();
+            foreach (var message in messages)
+            {
+                if (ShowGCSTraffic.IsChecked == true || message.sysid != 255)
+                {
+                    var rate = _mavInspector.GetMessageRate(message.sysid, message.compid, message.msgid);
+                    UpdateTreeViewForMessage(message, rate);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error refreshing TreeView: {ex.Message}");
+        }
     }
 
     private void SetupDetailsTimer()
@@ -249,7 +316,10 @@ public partial class MainWindow : Window
     {
         try
         {
-            // GCS traffic kontrolünü kaldır çünkü artık HandleMessage'da kontrol ediliyor
+            // GCS trafiği kontrolü
+            if (message.sysid == 255 && !ShowGCSTraffic.IsChecked.GetValueOrDefault())
+                return;
+
             _mavInspector.Add(message.sysid, message.compid, message.msgid, message, message.Length);
 
             Interlocked.Increment(ref _totalMessages);
@@ -412,39 +482,38 @@ public partial class MainWindow : Window
 
     private Color GenerateMessageColor(uint msgId)
     {
-        // HSV kullanarak koyu renkler üret
-        var hue = (msgId * 0.618034f) % 1.0f;  // Altın oran ile dağılım
-        return ColorFromHSV(hue, 0.9f, 0.7f);  // Doygunluğu artır, parlaklığı azalt
-    }
+        // Altın oran ile renk dağılımı (0-1 arası)
+        var hue = (msgId * 0.618034f) % 1.0f;
 
-    private void SortTreeViewItems(ItemsControl parent)
-    {
-        // Get only message nodes (skip Vehicle and Component nodes)
-        var items = parent.Items.Cast<TreeViewItem>()
-            .OrderBy(item =>
-            {
-                // Get the text part without Hz and bps info
-                if (item.Header is StackPanel sp &&
-                    sp.Children.Count > 1 &&
-                    sp.Children[1] is TextBlock tb)
-                {
-                    string text = tb.Text;
-                    int bracketIndex = text.IndexOf('(');
-                    if (bracketIndex > 0)
-                    {
-                        return text.Substring(0, bracketIndex).Trim();
-                    }
-                    return text;
-                }
-                return item.Header.ToString();
-            })
-            .ToList();
+        // Siyah üstünde açık ve rahatça görülebilir renkler için ayarlamalar
+        const float saturation = 0.3f;  // Daha düşük doygunluk
+        const float brightness = 0.99f; // Daha yüksek parlaklık
 
-        parent.Items.Clear();
-        foreach (var item in items)
+        // Renk çarkını 6 parçaya bölerek açık renkler üret
+        int segment = Convert.ToInt32(Math.Floor(hue * 6));
+        float f = hue * 6 - segment;
+
+        // RGB bileşenlerini hesapla
+        float p = brightness * (1 - saturation);
+        float q = brightness * (1 - f * saturation);
+        float t = brightness * (1 - (1 - f) * saturation);
+
+        // RGB değerlerini byte'a dönüştür
+        byte vb = (byte)(brightness * 255);
+        byte pb = (byte)(p * 255);
+        byte tb = (byte)(t * 255);
+        byte qb = (byte)(q * 255);
+
+        // Renk çarkının hangi segmentinde olduğumuza göre renk döndür
+        return segment switch
         {
-            parent.Items.Add(item);
-        }
+            0 => Color.FromRgb(vb, tb, pb),  // Kırmızı -> Sarı
+            1 => Color.FromRgb(qb, vb, pb),  // Sarı -> Yeşil
+            2 => Color.FromRgb(pb, vb, tb),  // Yeşil -> Cyan
+            3 => Color.FromRgb(pb, qb, vb),  // Cyan -> Mavi
+            4 => Color.FromRgb(tb, pb, vb),  // Mavi -> Magenta
+            _ => Color.FromRgb(vb, pb, qb)   // Magenta -> Kırmızı
+        };
     }
 
     private void Timer_Tick(object sender, EventArgs e)
@@ -498,49 +567,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private void HighlightSelectedMessage(MAVLink.MAVLinkMessage message)
-    {
-        try
-        {
-            // TreeView'da ilgili mesajı bul
-            var vehicleNode = FindVehicleNode(message.sysid);
-            if (vehicleNode == null) return;
-
-            var componentNode = FindComponentNode(vehicleNode, message.compid);
-            if (componentNode == null) return;
-
-            var messageNode = FindMessageNode(componentNode, message.msgid);
-            if (messageNode == null) return;
-
-            // Seçili yap ve görünür kıl
-            messageNode.IsSelected = true;
-            messageNode.BringIntoView();
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"Error highlighting message: {ex.Message}");
-        }
-    }
-
-    private TreeViewItem? FindVehicleNode(byte sysid)
-    {
-        return treeView1.Items.OfType<TreeViewItem>()
-                       .FirstOrDefault(n => n.Tag is byte id && id == sysid);
-    }
-
-    private TreeViewItem? FindComponentNode(TreeViewItem vehicleNode, byte compid)
-    {
-        return vehicleNode.Items.OfType<TreeViewItem>()
-                         .FirstOrDefault(n => n.Tag is int id && (id & 0xFF) == compid);
-    }
-
-    private TreeViewItem? FindMessageNode(TreeViewItem componentNode, uint msgid)
-    {
-        return componentNode.Items.OfType<TreeViewItem>()
-                           .FirstOrDefault(n => n.Tag is MAVLink.MAVLinkMessage msg && msg.msgid == msgid);
-    }
-
-    // TreeView seçim değişikliğini handle et
     private void TreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
         try
@@ -648,6 +674,7 @@ public partial class MainWindow : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
+        _treeViewUpdateTimer.Stop();
         _detailsUpdateTimer.Stop();
         _isDisposed = true;
         base.OnClosing(e);
@@ -666,48 +693,53 @@ public partial class MainWindow : Window
                selectedMsg.compid == message.compid;
     }
 
-    private Color ColorFromHSV(float hue, float saturation, float value)
+    private void ConfigureUpdateTimers()
     {
-        int hi = Convert.ToInt32(Math.Floor(hue * 6));
-        float f = (float)(hue * 6 - Math.Floor(hue * 6));
-        float p = value * (1 - saturation);
-        float q = value * (1 - f * saturation);
-        float t = value * (1 - (1 - f) * saturation);
+        // TreeView güncellemesi için timer
+        _treeViewUpdateTimer.Interval = TimeSpan.FromMilliseconds(UPDATE_INTERVAL_MS);
+        _treeViewUpdateTimer.Tick += (s, e) => UpdateTreeView();
+        _treeViewUpdateTimer.Start();
 
-        byte b = (byte)(value * 255);
-
-        byte pb = (byte)(p * 255);
-        byte tb = (byte)(t * 255);
-        byte qb = (byte)(q * 255);
-
-        return hi switch
-        {
-            0 => Color.FromRgb(b, tb, pb),
-            1 => Color.FromRgb(qb, b, pb),
-            2 => Color.FromRgb(pb, b, tb),
-            3 => Color.FromRgb(pb, qb, b),
-            4 => Color.FromRgb(tb, pb, b),
-            _ => Color.FromRgb(b, pb, qb)
-        };
+        // Message details güncellemesi için timer
+        _detailsUpdateTimer.Interval = TimeSpan.FromMilliseconds(UPDATE_INTERVAL_MS);
+        _detailsUpdateTimer.Tick += (s, e) => UpdateMessageDetailsIfNeeded();
+        _detailsUpdateTimer.Start();
     }
 
-    private void ProcessMessageQueue(object sender, EventArgs e)
+    private void UpdateTreeView()
     {
-        if (_messageQueue.Count == 0) return;
+        if ((DateTime.Now - _lastTreeViewUpdate).TotalMilliseconds < UPDATE_INTERVAL_MS)
+            return;
 
-        var batch = new List<MAVLink.MAVLinkMessage>();
-        lock (_messageQueue)
+        lock (_treeUpdateLock)
         {
-            while (batch.Count < UI_BATCH_SIZE && _messageQueue.Count > 0)
+            // Tüm mesajları tek seferde güncelle
+            var messages = _mavInspector.GetPacketMessages().ToList();
+            foreach (var message in messages)
             {
-                batch.Add(_messageQueue.Dequeue());
+                var rate = _mavInspector.GetMessageRate(message.sysid, message.compid, message.msgid);
+                UpdateTreeViewForMessage(message, rate);
             }
         }
 
-        foreach (var message in batch)
+        _lastTreeViewUpdate = DateTime.Now;
+    }
+
+    private void UpdateMessageDetailsIfNeeded()
+    {
+        if (_currentlyDisplayedMessage == null ||
+            (DateTime.Now - _lastDetailsUpdate).TotalMilliseconds < UPDATE_INTERVAL_MS)
+            return;
+
+        if (_mavInspector.TryGetLatestMessage(
+            _currentlyDisplayedMessage.sysid,
+            _currentlyDisplayedMessage.compid,
+            _currentlyDisplayedMessage.msgid,
+            out var latestMessage))
         {
-            var rate = _mavInspector.GetMessageRate(message.sysid, message.compid, message.msgid);
-            UpdateTreeViewForMessage(message, rate);
+            UpdateMessageDetails(latestMessage);
         }
+
+        _lastDetailsUpdate = DateTime.Now;
     }
 } // MainWindow class ends here

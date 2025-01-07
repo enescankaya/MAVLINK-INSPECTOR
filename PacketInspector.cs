@@ -114,32 +114,6 @@ namespace MavlinkInspector
             return messageCount / timeSpan;
         }
 
-        public double SeenRate(byte sysid, byte compid, uint msgid)
-        {
-            var id = GetID(sysid, compid);
-            var end = DateTime.Now;
-            var start = end.AddSeconds(-3);
-
-            lock (_lock)
-            {
-                if (!_rate.TryGetValue(id, out var rates) || !rates.TryGetValue(msgid, out var data))
-                    return 0;
-
-                try
-                {
-                    var starttime = data.First().dateTime;
-                    starttime = starttime < start ? start : starttime;
-                    var msgrate = data.Where(a => a.dateTime > start && a.dateTime < end)
-                                    .Sum(a => a.value / (end - starttime).TotalSeconds);
-                    return msgrate;
-                }
-                catch
-                {
-                    return 0;
-                }
-            }
-        }
-
         // BPS hesaplaması optimize edildi
         public double GetBps(byte sysid, byte compid, uint msgid)
         {
@@ -235,15 +209,6 @@ namespace MavlinkInspector
             NewSysidCompid?.Invoke(this, EventArgs.Empty);
         }
 
-        private void CleanupQueue(ConcurrentQueue<irate> queue, DateTime now)
-        {
-            while (queue.TryPeek(out var oldest) &&
-                   (now - oldest.dateTime).TotalMilliseconds > MAX_HISTORY_TIME_MS)
-            {
-                queue.TryDequeue(out _);
-            }
-        }
-
         private IEnumerable<T1> toArray<T1>(IEnumerable<T1> input)
         {
             lock (_lock)
@@ -318,23 +283,6 @@ namespace MavlinkInspector
 
             return _history.TryGetValue(id, out var messages) &&
                    messages.TryGetValue(msgid, out message);
-        }
-
-        // Yeni eklenen helper method
-        private double CalculateRate(List<irate> samples, DateTime start, DateTime end)
-        {
-            if (samples.Count < 2) return 0;
-
-            var filteredSamples = samples
-                .Where(s => s.dateTime >= start && s.dateTime <= end)
-                .ToList();
-
-            if (filteredSamples.Count < 2) return 0;
-
-            var timeSpan = (end - start).TotalSeconds;
-            if (timeSpan <= 0) return 0;
-
-            return filteredSamples.Sum(s => s.value) / timeSpan;
         }
     }
 }

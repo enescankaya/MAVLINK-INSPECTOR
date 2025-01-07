@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "e1fPJMOUSgSB5PYql19Z01EZ4bToHl1XIgbc5JwT5rfNNnIB7sP/pmC/jh2ACFn71ELXQ0AalUjPgZP6tB4tRQ==",
+  "dgSpecHash": "zTDnzg4JzEKky6lrM3bxQPiO+IlBIrjDHO2CF7VMiKiRDK0G9ZPhZG1F07e//yzfy8BWArSVikoUf4QmQqHuNw==",
   "success": true,
-  "projectFilePath": "C:\\Users\\PC_6270\\Desktop\\Enes\\MavlinkInspecter\\MainProject\\MavlinkInspector\\MavlinkInspector\\MavlinkInspector.csproj",
+  "projectFilePath": "C:\\Users\\PC_6270\\MAVLINK-INSPECTOR\\MavlinkInspector.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\PC_6270\\.nuget\\packages\\runtime.any.system.io\\4.1.0\\runtime.any.system.io.4.1.0.nupkg.sha512",
     "C:\\Users\\PC_6270\\.nuget\\packages\\runtime.linux-arm.runtime.native.system.io.ports\\8.0.0\\runtime.linux-arm.runtime.native.system.io.ports.8.0.0.nupkg.sha512",
@@ -11,7 +11,8 @@
     "C:\\Users\\PC_6270\\.nuget\\packages\\runtime.native.system.io.ports\\8.0.0\\runtime.native.system.io.ports.8.0.0.nupkg.sha512",
     "C:\\Users\\PC_6270\\.nuget\\packages\\runtime.osx-arm64.runtime.native.system.io.ports\\8.0.0\\runtime.osx-arm64.runtime.native.system.io.ports.8.0.0.nupkg.sha512",
     "C:\\Users\\PC_6270\\.nuget\\packages\\runtime.osx-x64.runtime.native.system.io.ports\\8.0.0\\runtime.osx-x64.runtime.native.system.io.ports.8.0.0.nupkg.sha512",
-    "C:\\Users\\PC_6270\\.nuget\\packages\\system.io.ports\\8.0.0\\system.io.ports.8.0.0.nupkg.sha512"
+    "C:\\Users\\PC_6270\\.nuget\\packages\\system.io.ports\\8.0.0\\system.io.ports.8.0.0.nupkg.sha512",
+    "C:\\Users\\PC_6270\\.nuget\\packages\\system.reactive\\6.0.1\\system.reactive.6.0.1.nupkg.sha512"
   ],
   "logs": [
     {

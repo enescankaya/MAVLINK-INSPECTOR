@@ -9,6 +9,7 @@
       "MavlinkInspector/1.0.0": {
         "dependencies": {
           "System.IO.Ports": "8.0.0",
+          "System.Reactive": "6.0.1",
           "runtime.any.System.IO": "4.1.0",
           "MAVLink": "1.0.0.0"
         },
@@ -96,6 +97,14 @@
           }
         }
       },
+      "System.Reactive/6.0.1": {
+        "runtime": {
+          "lib/net6.0/System.Reactive.dll": {
+            "assemblyVersion": "6.0.0.0",
+            "fileVersion": "6.0.1.7420"
+          }
+        }
+      },
       "MAVLink/1.0.0.0": {
         "runtime": {
           "MAVLink.dll": {
@@ -167,6 +176,13 @@
       "sha512": "sha512-MaiPbx2/QXZc62gm/DrajRrGPG1lU4m08GWMoWiymPYM+ba4kfACp2PbiYpqJ4QiFGhHD00zX3RoVDTucjWe9g==",
       "path": "system.io.ports/8.0.0",
       "hashPath": "system.io.ports.8.0.0.nupkg.sha512"
+    },
+    "System.Reactive/6.0.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-rHaWtKDwCi9qJ3ObKo8LHPMuuwv33YbmQi7TcUK1C264V3MFnOr5Im7QgCTdLniztP3GJyeiSg5x8NqYJFqRmg==",
+      "path": "system.reactive/6.0.1",
+      "hashPath": "system.reactive.6.0.1.nupkg.sha512"
     },
     "MAVLink/1.0.0.0": {
       "type": "reference",
