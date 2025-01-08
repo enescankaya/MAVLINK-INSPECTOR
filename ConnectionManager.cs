@@ -44,28 +44,47 @@ public class ConnectionManager : IAsyncDisposable
     {
         if (_connection == null) return;
 
+        var parser = new MAVLink.MavlinkParse();
+        var buffer = new List<byte>();
+
         try
         {
             await foreach (var data in _connection.DataChannel.ReadAllAsync(ct))
             {
-                await _dataChannel.Writer.WriteAsync(data, ct);
+                // Tüm verileri buffer'a ekle
+                buffer.AddRange(data);
 
-                // Parse ve process MAVLink mesajı
-                if (data.Length >= 8)
+                // Yeterli veri varsa paketleri işle
+                while (buffer.Count >= 8)
                 {
                     try
                     {
-                        using var ms = new MemoryStream(data);
-                        var parser = new MAVLink.MavlinkParse();
+                        using var ms = new MemoryStream(buffer.ToArray());
                         var message = parser.ReadPacket(ms);
-                        if (message != null)
+
+                        if (message == null)
                         {
-                            OnMessageReceived?.Invoke(message);
+                            buffer.RemoveAt(0);
+                            continue;
                         }
+
+                        // Başarılı okunan veriyi buffer'dan kaldır
+                        var bytesRead = (int)ms.Position;
+                        buffer.RemoveRange(0, bytesRead);
+
+                        // Mesajı işle
+                        OnMessageReceived?.Invoke(message);
                     }
-                    catch (Exception ex)
+                    catch
                     {
+                        buffer.RemoveAt(0);
                     }
+                }
+
+                // Buffer'ı temizle (çok büyükse)
+                if (buffer.Count > 16384)
+                {
+                    buffer.RemoveRange(0, buffer.Count - 16384);
                 }
             }
         }
@@ -86,8 +105,9 @@ public class ConnectionManager : IAsyncDisposable
             //await _connection.SendAsync(data);
             OnMessageSent?.Invoke(message);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
+            // Hata durumunda sessizce devam et
         }
     }
 

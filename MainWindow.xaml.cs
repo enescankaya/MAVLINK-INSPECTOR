@@ -102,19 +102,19 @@ public partial class MainWindow : Window
 
         ShowGCSTraffic.Checked += (s, e) =>
         {
-            MessageBox.Show("ccc");
-
-            _connectionManager.OnMessageReceived += HandleMessage;
             _connectionManager.OnMessageSent += HandleMessage;
-            RefreshTreeView();
+            Dispatcher.BeginInvoke(RefreshTreeView);
         };
 
         ShowGCSTraffic.Unchecked += (s, e) =>
         {
-            _connectionManager.OnMessageReceived -= HandleMessage;
             _connectionManager.OnMessageSent -= HandleMessage;
             RemoveGCSTrafficFromTreeView();
+            ResetButton_Click(s,e);
         };
+
+        // Başlangıçta GCS trafiğini dinlemeye başla
+        _connectionManager.OnMessageReceived += HandleMessage;
 
         treeView1.SelectedItemChanged += TreeView_SelectedItemChanged;
     }
@@ -285,9 +285,23 @@ public partial class MainWindow : Window
 
     private void HandleMessage(MAVLink.MAVLinkMessage message)
     {
+        // GCS trafiğini (sysid 255) veya diğer trafiği göster
         if (ShowGCSTraffic.IsChecked.GetValueOrDefault() || message.sysid != 255)
         {
-            ProcessMessage(message);
+            Dispatcher.BeginInvoke(() =>
+            {
+                try
+                {
+                    // Mesajı işle ve UI'ı güncelle
+                    _mavInspector.Add(message.sysid, message.compid, message.msgid, message, message.Length);
+                    var rate = _mavInspector.GetMessageRate(message.sysid, message.compid, message.msgid);
+                    UpdateTreeViewForMessage(message, rate);
+                }
+                catch (Exception)
+                {
+                    // Hata durumunda sessizce devam et
+                }
+            });
         }
     }
 

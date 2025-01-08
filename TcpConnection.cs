@@ -52,19 +52,21 @@ public class TcpConnection : IConnection
 
     private async Task ReadLoopAsync(CancellationToken ct)
     {
+        var buffer = new byte[4096];
+
         try
         {
-            while (!ct.IsCancellationRequested && IsConnected)
+            while (!ct.IsCancellationRequested && IsConnected && _stream != null)
             {
-                var bytesRead = await _stream!.ReadAsync(_readBuffer, ct);
-                if (bytesRead == 0) break;
+                var bytesRead = await _stream.ReadAsync(buffer, 0, buffer.Length, ct);
+                if (bytesRead == 0) break; // Bağlantı kapandı
 
                 var data = new byte[bytesRead];
-                Buffer.BlockCopy(_readBuffer, 0, data, 0, bytesRead);
+                Buffer.BlockCopy(buffer, 0, data, 0, bytesRead);
                 await _dataChannel.Writer.WriteAsync(data, ct);
             }
         }
-        catch when (!ct.IsCancellationRequested)
+        catch (Exception) when (!ct.IsCancellationRequested)
         {
             await DisconnectAsync();
         }
