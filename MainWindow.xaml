@@ -83,9 +83,9 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5">
-            <GroupBox Header="Connection Settings" Padding="5">
+ 
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5" >
+            <GroupBox Header="Connection Settings" Padding="5" BorderThickness="0.1">
                 <StackPanel Orientation="Horizontal">
                     <ComboBox Width="120" Name="ConnectionTypeComboBox" Margin="5"
                           SelectionChanged="ConnectionTypeComboBox_SelectionChanged" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Background="White"/>
@@ -105,7 +105,7 @@
                 </StackPanel>
             </GroupBox>
 
-            <GroupBox Header="Display Options" Padding="5">
+            <GroupBox Header="Display Options" Padding="5" BorderThickness="0.1">
                 <StackPanel Orientation="Horizontal">
                     <CheckBox Name="ShowGCSTraffic" Content="Show GCS Traffic" Margin="5" 
                          VerticalAlignment="Center" Foreground="{StaticResource TextColor}" />
@@ -115,7 +115,7 @@
             </GroupBox>
 
             <!-- Yeni Update Settings GroupBox -->
-            <GroupBox Header="Update Settings" Padding="5">
+            <GroupBox Header="Update Settings" Padding="5" BorderThickness="0.1">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="Update Interval:" 
                              VerticalAlignment="Center" 
@@ -175,20 +175,45 @@
 
             <!-- Separator -->
             <GridSplitter Grid.Column="1" 
-                         Width="6" 
-                         Background="Transparent"
-                         HorizontalAlignment="Center">
+              Width="14" 
+              Background="White" 
+              HorizontalAlignment="Center"
+              VerticalAlignment="Stretch"
+              ResizeDirection="Columns"
+              ShowsPreview="True">
                 <GridSplitter.Template>
-                    <ControlTemplate>
-                        <Border Width="6" 
-                                Background="{StaticResource BorderColor}"
-                                Margin="3,0"/>
+                    <ControlTemplate TargetType="GridSplitter">
+                        <Border Width="14" 
+                    CornerRadius="2"
+                    Background="{StaticResource AccentColor}" 
+                    BorderBrush="{StaticResource BorderColor}" 
+                    BorderThickness="2"
+                    VerticalAlignment="Stretch">
+                            <StackPanel Orientation="Vertical" 
+                            HorizontalAlignment="Center" 
+                            VerticalAlignment="Center">
+                                <!-- Dekoratif Noktalar -->
+                                <Ellipse Width="4" 
+                             Height="4" 
+                             Fill="White" 
+                             Margin="0,2"/>
+                                <Ellipse Width="4" 
+                             Height="4" 
+                             Fill="White" 
+                             Margin="0,2"/>
+                                <Ellipse Width="4" 
+                             Height="4" 
+                             Fill="White" 
+                             Margin="0,2"/>
+                            </StackPanel>
+                        </Border>
                     </ControlTemplate>
                 </GridSplitter.Template>
             </GridSplitter>
 
+
             <!-- Message Details güncellemesi -->
-            <GroupBox Grid.Column="2" Header="Message Details" Background="{StaticResource PanelBackground}" ScrollViewer.HorizontalScrollBarVisibility="Hidden" ScrollViewer.VerticalScrollBarVisibility="Hidden">
+            <GroupBox Grid.Column="2" Header="Message Details" Background="{StaticResource PanelBackground}" ScrollViewer.HorizontalScrollBarVisibility="Hidden" ScrollViewer.VerticalScrollBarVisibility="Hidden" BorderThickness="0.1">
                 <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden" CanContentScroll="True">
                     <StackPanel Margin="5">
                         <!-- Header Section -->
