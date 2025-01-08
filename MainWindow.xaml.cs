@@ -62,6 +62,9 @@ public partial class MainWindow : Window
         public string LastHeader { get; set; } = string.Empty;
     }
 
+    /// <summary>
+    /// Initializes a new instance of the MainWindow class.
+    /// </summary>
     public MainWindow()
     {
         InitializeComponent();
@@ -75,6 +78,9 @@ public partial class MainWindow : Window
         InitializeSearchFeatures();
     }
 
+    /// <summary>
+    /// Initializes the UI components.
+    /// </summary>
     private void InitializeUI()
     {
         ConnectionTypeComboBox.ItemsSource = new[] { "Serial", "TCP", "UDP" };
@@ -89,6 +95,9 @@ public partial class MainWindow : Window
 
     }
 
+    /// <summary>
+    /// Sets up the timer for periodic updates.
+    /// </summary>
     private void SetupTimer()
     {
         _timer.Interval = TimeSpan.FromMilliseconds(100);
@@ -96,6 +105,9 @@ public partial class MainWindow : Window
         _timer.Start();
     }
 
+    /// <summary>
+    /// Sets up message handling for incoming MAVLink messages.
+    /// </summary>
     private void SetupMessageHandling()
     {
         _mavInspector.NewSysidCompid += (s, e) => Dispatcher.BeginInvoke(UpdateSystemList);
@@ -119,7 +131,9 @@ public partial class MainWindow : Window
         treeView1.SelectedItemChanged += TreeView_SelectedItemChanged;
     }
 
-    // Yeni metodlar ekle
+    /// <summary>
+    /// Removes GCS traffic from the TreeView.
+    /// </summary>
     private void RemoveGCSTrafficFromTreeView()
     {
         try
@@ -136,6 +150,9 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Refreshes the TreeView with the latest messages.
+    /// </summary>
     private void RefreshTreeView()
     {
         try
@@ -156,6 +173,9 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Sets up the timer for updating message details.
+    /// </summary>
     private void SetupDetailsTimer()
     {
         _detailsUpdateTimer.Interval = TimeSpan.FromMilliseconds(100); // 10 Hz update rate
@@ -163,6 +183,11 @@ public partial class MainWindow : Window
         _detailsUpdateTimer.Start();
     }
 
+    /// <summary>
+    /// Handles the tick event of the details update timer.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The event arguments.</param>
     private void DetailsTimer_Tick(object sender, EventArgs e)
     {
         if (_currentlyDisplayedMessage != null)
@@ -171,6 +196,10 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Updates message details if needed.
+    /// </summary>
+    /// <param name="message">The MAVLink message.</param>
     private void UpdateMessageDetailsIfNeeded(MAVLink.MAVLinkMessage message)
     {
         if (_mavInspector.TryGetLatestMessage(message.sysid, message.compid, message.msgid, out var latestMessage))
@@ -179,6 +208,11 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Handles the click event of the Connect button.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The event arguments.</param>
     private async void ConnectButton_Click(object sender, RoutedEventArgs e)
     {
         if (_connectionManager.IsConnected)
@@ -191,6 +225,9 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Connects to the MAVLink source asynchronously.
+    /// </summary>
     private async Task ConnectAsync()
     {
         try
@@ -219,6 +256,9 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Disconnects from the MAVLink source asynchronously.
+    /// </summary>
     private async Task DisconnectAsync()
     {
         await _connectionManager.DisconnectAsync();
@@ -227,6 +267,9 @@ public partial class MainWindow : Window
         statusConnectionText.Text = "Disconnected";
     }
 
+    /// <summary>
+    /// Processes incoming MAVLink data asynchronously.
+    /// </summary>
     private async Task ProcessIncomingDataAsync()
     {
         var mavlinkParse = new MAVLink.MavlinkParse();
@@ -283,6 +326,10 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Handles incoming MAVLink messages.
+    /// </summary>
+    /// <param name="message">The MAVLink message.</param>
     private void HandleMessage(MAVLink.MAVLinkMessage message)
     {
         // GCS trafiği kontrolü
@@ -295,6 +342,10 @@ public partial class MainWindow : Window
         Interlocked.Increment(ref _messagesSinceLastUpdate);
     }
 
+    /// <summary>
+    /// Processes a MAVLink message.
+    /// </summary>
+    /// <param name="message">The MAVLink message.</param>
     private void ProcessMessage(MAVLink.MAVLinkMessage message)
     {
         try
@@ -320,6 +371,11 @@ public partial class MainWindow : Window
             // Hata durumunda sessizce devam et
         }
     }
+
+    /// <summary>
+    /// Updates the UI asynchronously with the given MAVLink message.
+    /// </summary>
+    /// <param name="message">The MAVLink message.</param>
     private async Task UpdateUIAsync(MAVLink.MAVLinkMessage message)
     {
         var rate = _mavInspector.GetMessageRate(message.sysid, message.compid, message.msgid);
@@ -330,6 +386,9 @@ public partial class MainWindow : Window
         }, DispatcherPriority.Background);
     }
 
+    /// <summary>
+    /// Cleans up old messages from the TreeView.
+    /// </summary>
     private void CleanupOldMessages()
     {
         // TreeView'daki eski mesajları temizle
@@ -350,17 +409,34 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Gets or creates a vehicle node in the TreeView.
+    /// </summary>
+    /// <param name="sysid">The system ID.</param>
+    /// <returns>The TreeViewItem representing the vehicle node.</returns>
     private TreeViewItem GetOrCreateVehicleNode(byte sysid)
     {
         var header = $"Vehicle {sysid}";
         return treeView1.FindOrCreateChild(header, sysid);
     }
 
+    /// <summary>
+    /// Gets or creates a component node in the TreeView.
+    /// </summary>
+    /// <param name="vehicleNode">The vehicle node.</param>
+    /// <param name="message">The MAVLink message.</param>
+    /// <returns>The TreeViewItem representing the component node.</returns>
     private TreeViewItem GetOrCreateComponentNode(TreeViewItem vehicleNode, MAVLink.MAVLinkMessage message)
     {
         var header = $"Component {message.compid}";
         return vehicleNode.FindOrCreateChild(header, (message.sysid << 8) | message.compid);
     }
+
+    /// <summary>
+    /// Updates the TreeView for the given MAVLink message.
+    /// </summary>
+    /// <param name="message">The MAVLink message.</param>
+    /// <param name="rate">The message rate.</param>
     private void UpdateTreeViewForMessage(MAVLink.MAVLinkMessage message, double rate)
     {
         try
@@ -399,6 +475,13 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Formats the message header for display in the TreeView.
+    /// </summary>
+    /// <param name="message">The MAVLink message.</param>
+    /// <param name="rate">The message rate.</param>
+    /// <param name="bps">The message bits per second.</param>
+    /// <returns>The formatted message header.</returns>
     private string FormatMessageHeader(MAVLink.MAVLinkMessage message, double rate, double bps)
     {
         if (bps >= 1000000)
@@ -408,6 +491,14 @@ public partial class MainWindow : Window
         return $"{message.msgtypename} ({rate:F1} Hz, {bps:F0} bps)";
     }
 
+    /// <summary>
+    /// Updates the color of a TreeView node.
+    /// </summary>
+    /// <param name="node">The TreeView node.</param>
+    /// <param name="sysid">The system ID.</param>
+    /// <param name="compid">The component ID.</param>
+    /// <param name="msgid">The message ID.</param>
+    /// <param name="rate">The message rate.</param>
     private void UpdateNodeColor(TreeViewItem node, byte sysid, byte compid, uint msgid, double rate)
     {
         // Mesaj için benzersiz bir anahtar oluştur
@@ -428,6 +519,11 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Generates a color based on the message rate.
+    /// </summary>
+    /// <param name="rate">The message rate.</param>
+    /// <returns>The generated color.</returns>
     private Color GenerateMessageColor(double rate)
     {
         try
@@ -472,14 +568,20 @@ public partial class MainWindow : Window
         }
     }
 
-
-
-
+    /// <summary>
+    /// Handles the tick event of the main timer.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The event arguments.</param>
     private void Timer_Tick(object sender, EventArgs e)
     {
         UpdateStatistics();
     }
 
+    /// <summary>
+    /// Updates the UI state based on the connection status.
+    /// </summary>
+    /// <param name="isConnected">Indicates whether the connection is active.</param>
     private void UpdateUIState(bool isConnected)
     {
         ConnectionTypeComboBox.IsEnabled = !isConnected;
@@ -487,12 +589,19 @@ public partial class MainWindow : Window
         NetworkPanel.IsEnabled = !isConnected;
     }
 
+    /// <summary>
+    /// Updates the system list in the UI.
+    /// </summary>
     private void UpdateSystemList()
     {
         var sysids = _mavInspector.SeenSysid();
         // Update UI with system IDs if needed
     }
 
+    /// <summary>
+    /// Updates the message details in the UI.
+    /// </summary>
+    /// <param name="message">The MAVLink message.</param>
     private void UpdateMessageDetails(MAVLink.MAVLinkMessage message)
     {
         try
@@ -596,6 +705,12 @@ public partial class MainWindow : Window
             // Log or handle the outer exception if needed
         }
     }
+
+    /// <summary>
+    /// Handles the selection changed event of the TreeView.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The event arguments.</param>
     private void TreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
         try
@@ -614,6 +729,9 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Updates the statistics in the UI.
+    /// </summary>
     private void UpdateStatistics()
     {
         var now = DateTime.Now;
@@ -628,6 +746,11 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Handles the selection changed event of the ConnectionTypeComboBox.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The event arguments.</param>
     private void ConnectionTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (ConnectionTypeComboBox.SelectedItem is string selectedType)
@@ -637,6 +760,11 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Handles the click event of the Reset button.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The event arguments.</param>
     private void ResetButton_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -703,12 +831,21 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Handles the closing event of the window.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The event arguments.</param>
     private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
     {
         _timer.Stop();
         _ = _connectionManager.DisposeAsync();
     }
 
+    /// <summary>
+    /// Handles the closing event of the window.
+    /// </summary>
+    /// <param name="e">The event arguments.</param>
     protected override void OnClosing(CancelEventArgs e)
     {
         _treeViewUpdateTimer.Stop();
@@ -717,6 +854,11 @@ public partial class MainWindow : Window
         base.OnClosing(e);
     }
 
+    /// <summary>
+    /// Determines if the given message is the currently selected message.
+    /// </summary>
+    /// <param name="message">The MAVLink message.</param>
+    /// <returns>True if the message is selected, otherwise false.</returns>
     private bool IsSelectedMessage(MAVLink.MAVLinkMessage message)
     {
         if (treeView1.SelectedItem is not TreeViewItem selectedItem)
@@ -730,6 +872,9 @@ public partial class MainWindow : Window
                selectedMsg.compid == message.compid;
     }
 
+    /// <summary>
+    /// Configures the update timers for the TreeView and message details.
+    /// </summary>
     private void ConfigureUpdateTimers()
     {
         // TreeView update timer
@@ -764,6 +909,9 @@ public partial class MainWindow : Window
         _detailsUpdateTimer.Start();
     }
 
+    /// <summary>
+    /// Updates the TreeView with the latest messages.
+    /// </summary>
     private void UpdateTreeView()
     {
         try
@@ -787,6 +935,9 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Updates the message details if needed.
+    /// </summary>
     private void UpdateMessageDetailsIfNeeded()
     {
         if (_currentlyDisplayedMessage == null ||
@@ -804,6 +955,10 @@ public partial class MainWindow : Window
 
         _lastDetailsUpdate = DateTime.Now;
     }
+
+    /// <summary>
+    /// Initializes the update interval ComboBox.
+    /// </summary>
     private void InitializeUpdateIntervalComboBox()
     {
         var intervals = new[]
@@ -817,6 +972,12 @@ public partial class MainWindow : Window
         UpdateIntervalComboBox.ItemsSource = intervals;
         UpdateIntervalComboBox.SelectedIndex = 1; // 200ms varsayılan
     }
+
+    /// <summary>
+    /// Handles the selection changed event of the UpdateIntervalComboBox.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The event arguments.</param>
     private void UpdateIntervalComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (UpdateIntervalComboBox.SelectedValue is int newInterval)
@@ -842,13 +1003,21 @@ public partial class MainWindow : Window
         }
     }
 
-    // ListView'in SelectionChanged event handler'ını ekle
+    /// <summary>
+    /// Handles the source initialized event of the window.
+    /// </summary>
+    /// <param name="e">The event arguments.</param>
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
         fieldsListView.SelectionChanged += FieldsListView_SelectionChanged;
     }
 
+    /// <summary>
+    /// Handles the selection changed event of the fields ListView.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The event arguments.</param>
     private void FieldsListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (fieldsListView.SelectedItem != null)
@@ -857,6 +1026,9 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Initializes the search features for the TreeView and ListView.
+    /// </summary>
     private void InitializeSearchFeatures()
     {
         // TreeView için klavye olayını ekle
@@ -865,6 +1037,11 @@ public partial class MainWindow : Window
         fieldsListView.KeyDown += FieldsListView_KeyDown;
     }
 
+    /// <summary>
+    /// Handles the key down event of the TreeView.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The event arguments.</param>
     private void TreeView_KeyDown(object sender, KeyEventArgs e)
     {
         if (!char.IsLetterOrDigit((char)KeyInterop.VirtualKeyFromKey(e.Key)))
@@ -883,6 +1060,10 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
+    /// <summary>
+    /// Searches for the given text in the TreeView.
+    /// </summary>
+    /// <param name="searchText">The search text.</param>
     private void SearchInTreeView(string searchText)
     {
         if (string.IsNullOrEmpty(searchText))
@@ -906,6 +1087,11 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Gets all TreeView items recursively.
+    /// </summary>
+    /// <param name="parent">The parent ItemsControl.</param>
+    /// <returns>An enumerable of TreeViewItem.</returns>
     private IEnumerable<TreeViewItem> GetAllTreeViewItems(ItemsControl parent)
     {
         for (int i = 0; i < parent.Items.Count; i++)
@@ -922,6 +1108,11 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Handles the key down event of the fields ListView.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The event arguments.</param>
     private void FieldsListView_KeyDown(object sender, KeyEventArgs e)
     {
         if (!char.IsLetterOrDigit((char)KeyInterop.VirtualKeyFromKey(e.Key)))
@@ -940,6 +1131,10 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
+    /// <summary>
+    /// Searches for the given text in the fields ListView.
+    /// </summary>
+    /// <param name="searchText">The search text.</param>
     private void SearchInFieldsList(string searchText)
     {
         if (string.IsNullOrEmpty(searchText))

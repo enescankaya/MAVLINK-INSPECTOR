@@ -6,11 +6,22 @@ using System.Windows.Media;
 
 namespace MavlinkInspector;
 
+/// <summary>
+/// TreeViewItem genişletme metodları.
+/// </summary>
 public static class Extensions
 {
     private static readonly ConcurrentDictionary<string, WeakReference<TreeViewItem>> _itemCache =
         new ConcurrentDictionary<string, WeakReference<TreeViewItem>>();
 
+    /// <summary>
+    /// Belirtilen başlık ve etiketle bir TreeViewItem bulur veya oluşturur.
+    /// </summary>
+    /// <param name="parent">Üst öğe.</param>
+    /// <param name="header">Başlık.</param>
+    /// <param name="tag">Etiket.</param>
+    /// <param name="data">Veri.</param>
+    /// <returns>TreeViewItem.</returns>
     public static TreeViewItem FindOrCreateChild(this ItemsControl parent, string header, object tag, object? data = null)
     {
         var item = parent.Items.OfType<TreeViewItem>()
@@ -22,11 +33,11 @@ public static class Extensions
             {
                 Header = CreateTreeItemHeader(header),
                 Tag = tag,
-                DataContext = data,  // DataContext'i message olarak ayarla
+                DataContext = data,
                 IsExpanded = true
             };
             parent.Items.Add(item);
-            SortTreeItems(parent); // Yeni item eklendiğinde sırala
+            SortTreeItems(parent);
         }
         else if (item.Header.ToString() != header)
         {
@@ -36,11 +47,14 @@ public static class Extensions
         return item;
     }
 
+    /// <summary>
+    /// TreeViewItem öğelerini sıralar.
+    /// </summary>
+    /// <param name="parent">Üst öğe.</param>
     private static void SortTreeItems(ItemsControl parent)
     {
         var items = parent.Items.Cast<TreeViewItem>().ToList();
 
-        // Mesaj node'larını sırala, Vehicle ve Component node'larını olduğu gibi bırak
         var sortedItems = items.Where(i => i.Header is StackPanel)
                              .OrderBy(GetSortableText)
                              .Concat(items.Where(i => !(i.Header is StackPanel)));
@@ -52,6 +66,11 @@ public static class Extensions
         }
     }
 
+    /// <summary>
+    /// TreeViewItem öğesinin sıralanabilir metnini döndürür.
+    /// </summary>
+    /// <param name="item">TreeViewItem öğesi.</param>
+    /// <returns>Sıralanabilir metin.</returns>
     private static string GetSortableText(TreeViewItem item)
     {
         if (item.Header is StackPanel sp && sp.Children.Count > 1 &&
@@ -66,6 +85,11 @@ public static class Extensions
         return item.Header?.ToString()?.ToUpperInvariant() ?? string.Empty;
     }
 
+    /// <summary>
+    /// TreeViewItem başlığı oluşturur.
+    /// </summary>
+    /// <param name="text">Başlık metni.</param>
+    /// <returns>StackPanel.</returns>
     private static StackPanel CreateTreeItemHeader(string text)
     {
         var stackPanel = new StackPanel
@@ -99,6 +123,11 @@ public static class Extensions
         return stackPanel;
     }
 
+    /// <summary>
+    /// Türün dostça adını döndürür.
+    /// </summary>
+    /// <param name="type">Tür.</param>
+    /// <returns>Dostça ad.</returns>
     private static string GetFriendlyTypeName(Type type)
     {
         if (type.IsArray)
@@ -118,5 +147,4 @@ public static class Extensions
             _ => type.Name
         };
     }
-
 }

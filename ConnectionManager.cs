@@ -5,9 +5,12 @@ using System.Threading.Channels;
 
 namespace MavlinkInspector;
 
+/// <summary>
+/// Bağlantı yöneticisi sınıfı.
+/// </summary>
 public class ConnectionManager : IAsyncDisposable
 {
-    private Connections.IConnection? _connection;
+    private IConnection? _connection;
     private readonly Channel<byte[]> _dataChannel;
     private CancellationTokenSource? _cts;
 
@@ -18,11 +21,18 @@ public class ConnectionManager : IAsyncDisposable
     public event Action<MAVLink.MAVLinkMessage>? OnMessageReceived;
     public event Action<MAVLink.MAVLinkMessage>? OnMessageSent;
 
+    /// <summary>
+    /// Bağlantı yöneticisi oluşturur.
+    /// </summary>
     public ConnectionManager()
     {
         _dataChannel = Channel.CreateUnbounded<byte[]>();
     }
 
+    /// <summary>
+    /// Bağlantıyı asenkron olarak başlatır.
+    /// </summary>
+    /// <param name="parameters">Bağlantı parametreleri.</param>
     public async Task ConnectAsync(ConnectionParameters parameters)
     {
         await DisconnectAsync();
@@ -40,6 +50,10 @@ public class ConnectionManager : IAsyncDisposable
         _ = ForwardDataAsync(_cts.Token);
     }
 
+    /// <summary>
+    /// Gelen verileri iletir.
+    /// </summary>
+    /// <param name="ct">İptal belirteci.</param>
     private async Task ForwardDataAsync(CancellationToken ct)
     {
         if (_connection == null) return;
@@ -51,10 +65,8 @@ public class ConnectionManager : IAsyncDisposable
         {
             await foreach (var data in _connection.DataChannel.ReadAllAsync(ct))
             {
-                // Tüm verileri buffer'a ekle
                 buffer.AddRange(data);
 
-                // Yeterli veri varsa paketleri işle
                 while (buffer.Count >= 8)
                 {
                     try
@@ -68,11 +80,9 @@ public class ConnectionManager : IAsyncDisposable
                             continue;
                         }
 
-                        // Başarılı okunan veriyi buffer'dan kaldır
                         var bytesRead = (int)ms.Position;
                         buffer.RemoveRange(0, bytesRead);
 
-                        // Mesajı işle
                         OnMessageReceived?.Invoke(message);
                     }
                     catch
@@ -81,7 +91,6 @@ public class ConnectionManager : IAsyncDisposable
                     }
                 }
 
-                // Buffer'ı temizle (çok büyükse)
                 if (buffer.Count > 16384)
                 {
                     buffer.RemoveRange(0, buffer.Count - 16384);
@@ -90,10 +99,13 @@ public class ConnectionManager : IAsyncDisposable
         }
         catch (OperationCanceledException)
         {
-            // Normal cancellation
         }
     }
 
+    /// <summary>
+    /// Mesajı asenkron olarak gönderir.
+    /// </summary>
+    /// <param name="message">Gönderilecek mesaj.</param>
     public async Task SendAsync(MAVLink.MAVLinkMessage message)
     {
         if (_connection == null) return;
@@ -107,10 +119,12 @@ public class ConnectionManager : IAsyncDisposable
         }
         catch (Exception)
         {
-            // Hata durumunda sessizce devam et
         }
     }
 
+    /// <summary>
+    /// Bağlantıyı asenkron olarak sonlandırır.
+    /// </summary>
     public async Task DisconnectAsync()
     {
         if (_connection != null)
@@ -122,6 +136,9 @@ public class ConnectionManager : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Nesneyi asenkron olarak imha eder.
+    /// </summary>
     public async ValueTask DisposeAsync()
     {
         await DisconnectAsync();

@@ -6,6 +6,9 @@ using System.Threading.Channels;
 
 namespace MavlinkInspector.Connections;
 
+/// <summary>
+/// UDP bağlantısı sınıfı.
+/// </summary>
 public class UdpConnection : IConnection
 {
     private readonly string _host;
@@ -17,10 +20,15 @@ public class UdpConnection : IConnection
     private readonly SemaphoreSlim _connectionLock = new(1, 1);
     private IPEndPoint? _remoteEndPoint;
 
-    public bool IsConnected => _client != null;  // Changed from Client.Connected check
+    public bool IsConnected => _client != null;
     public bool IsDisposed => _isDisposed;
     public ChannelReader<byte[]> DataChannel => _dataChannel.Reader;
 
+    /// <summary>
+    /// UDP bağlantısı oluşturur.
+    /// </summary>
+    /// <param name="host">Sunucu adresi.</param>
+    /// <param name="port">Port numarası.</param>
     public UdpConnection(string host, int port)
     {
         _host = host;
@@ -31,6 +39,10 @@ public class UdpConnection : IConnection
         });
     }
 
+    /// <summary>
+    /// Bağlantıyı asenkron olarak başlatır.
+    /// </summary>
+    /// <param name="cancellationToken">İptal belirteci.</param>
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
         await _connectionLock.WaitAsync(cancellationToken);
@@ -38,19 +50,16 @@ public class UdpConnection : IConnection
         {
             if (IsDisposed) return;
 
-            // Close existing client if any
             if (_client != null)
             {
                 _client.Close();
                 _client = null;
             }
 
-            // Create endpoint
             _remoteEndPoint = new IPEndPoint(IPAddress.Any, _port);
 
             try
             {
-                // Create new client bound to the port
                 _client = new UdpClient(_port);
 
                 _readCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -67,6 +76,10 @@ public class UdpConnection : IConnection
         }
     }
 
+    /// <summary>
+    /// UDP verilerini okuma döngüsü.
+    /// </summary>
+    /// <param name="ct">İptal belirteci.</param>
     private async Task ReadLoopAsync(CancellationToken ct)
     {
         try
@@ -88,7 +101,7 @@ public class UdpConnection : IConnection
                 }
                 catch (Exception ex)
                 {
-                    await Task.Delay(100, ct); // Prevent tight loop on error
+                    await Task.Delay(100, ct);
                 }
             }
         }
@@ -98,6 +111,9 @@ public class UdpConnection : IConnection
         }
     }
 
+    /// <summary>
+    /// Bağlantıyı asenkron olarak sonlandırır.
+    /// </summary>
     public async Task DisconnectAsync()
     {
         await _connectionLock.WaitAsync();
@@ -121,6 +137,9 @@ public class UdpConnection : IConnection
         }
     }
 
+    /// <summary>
+    /// Nesneyi asenkron olarak imha eder.
+    /// </summary>
     public async ValueTask DisposeAsync()
     {
         if (_isDisposed) return;
@@ -129,13 +148,17 @@ public class UdpConnection : IConnection
         _readCts?.Dispose();
     }
 
+    /// <summary>
+    /// Veriyi asenkron olarak gönderir.
+    /// </summary>
+    /// <param name="data">Gönderilecek veri.</param>
+    /// <param name="cancellationToken">İptal belirteci.</param>
     public async Task SendAsync(byte[] data, CancellationToken cancellationToken = default)
     {
         if (_isDisposed || _client == null) return;
 
         try
         {
-            // Send to the specific remote endpoint if we have one
             if (_remoteEndPoint != null)
             {
                 await _client.SendAsync(data, data.Length, _remoteEndPoint);
