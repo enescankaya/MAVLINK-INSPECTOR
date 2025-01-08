@@ -76,6 +76,9 @@ public class PacketInspector<T>
             }
         }
 
+        /// <summary>
+        /// Tüm verileri temizler.
+        /// </summary>
         public void Clear()
         {
             lock (_lock)
