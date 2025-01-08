@@ -21,7 +21,7 @@ namespace MavlinkInspector
         private readonly SeriesCollection _seriesCollection;
         private readonly Dictionary<string, ChartValues<double>> _valuesByField;
         private readonly Dictionary<string, DateTime> _lastUpdateTime;
-        private  DispatcherTimer _updateTimer;
+        private DispatcherTimer _updateTimer;
         private readonly PacketInspector<MAVLink.MAVLinkMessage> _inspector;
         private readonly List<(byte sysid, byte compid, uint msgid, string field)> _trackedFields;
         private readonly ObservableCollection<LegendItem> _legendItems;
@@ -70,9 +70,11 @@ namespace MavlinkInspector
                 _valuesByField[key] = values;
                 _lastUpdateTime[key] = DateTime.MinValue;
 
+                var title = $"{field.field} (Sys:{field.sysid} Comp:{field.compid} Msg:{field.msgid})";
+
                 _seriesCollection.Add(new LineSeries
                 {
-                    Title = $"{field.field} (Sys:{field.sysid} Comp:{field.compid})",
+                    Title = title,
                     Values = values,
                     PointGeometry = null,
                     Stroke = brush,
@@ -82,7 +84,7 @@ namespace MavlinkInspector
 
                 _legendItems.Add(new LegendItem
                 {
-                    Title = $"{field.field} (Sys:{field.sysid})",
+                    Title = title,
                     Color = brush,
                     Value = 0
                 });

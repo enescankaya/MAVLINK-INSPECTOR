@@ -306,7 +306,7 @@
               Margin="2"
               ScrollViewer.HorizontalScrollBarVisibility="Disabled"
               ScrollViewer.VerticalScrollBarVisibility="Auto"
-                      SelectionMode="Extended">
+                      SelectionMode="Multiple">
                                 <ListView.Resources>
                                     <!-- GridViewColumnHeader Style -->
                                     <Style TargetType="GridViewColumnHeader">
@@ -396,7 +396,7 @@
         </Grid>
 
         <!-- Status bar güncellemesi -->
-        <StatusBar Grid.Row="2" 
+        <StatusBar Grid.Row="2" x:Name="statusBar"
                   Background="{StaticResource PanelBackground}"
                   Foreground="{StaticResource TextColor}">
             <StatusBarItem Padding="10,5">

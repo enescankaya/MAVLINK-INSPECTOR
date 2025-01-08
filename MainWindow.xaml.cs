@@ -9,6 +9,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.ComponentModel;
 using System.Windows.Input;
+using System.Windows.Controls.Primitives;
 
 namespace MavlinkInspector;
 
@@ -58,6 +59,9 @@ public partial class MainWindow : Window
     // Sınıf seviyesinde yeni bir değişken ekleyin
     private List<MAVLink.MAVLinkMessage> _selectedMessages = new();
 
+    private HashSet<(byte sysid, byte compid, uint msgid, string field)> _selectedFieldsForGraph = new();
+    private Button? _graphButton;  // Yeni graph butonu için referans
+
     private class MessageUpdateInfo
     {
         public DateTime LastUpdate { get; set; }
@@ -80,6 +84,7 @@ public partial class MainWindow : Window
         ConfigureUpdateTimers();
         InitializeSearchFeatures();
         InitializeGraphingFeatures();
+        InitializeGraphButton();
     }
 
     /// <summary>
@@ -631,7 +636,6 @@ public partial class MainWindow : Window
 
                     fieldsListView.Items.Clear();
                 });
-                _selectedFieldItem = null;
                 return;
             }
 
@@ -641,33 +645,38 @@ public partial class MainWindow : Window
             {
                 try
                 {
-                    // Update existing header information
+                    // Update header information
                     msgTypeText.Text = message.GetType().Name;
                     sysidText.Text = message.sysid.ToString();
                     compidText.Text = message.compid.ToString();
                     msgidText.Text = message.msgid.ToString();
                     lengthText.Text = message.Length.ToString();
-
-                    // Update new header information
                     msgTypeNameText.Text = message.msgtypename;
-                    crc16Text.Text = message.crc16.ToString("X4"); // Hexadecimal format
+                    crc16Text.Text = message.crc16.ToString("X4");
                     seqText.Text = message.seq.ToString();
                     headerText.Text = message.header.ToString();
-                    if (message.ismavlink2)
+                    isMavlink2Text.Text = message.ismavlink2 ? "Mavlink V2" : "Mavlink V1";
+
+                    // Mevcut seçili öğeleri kaydet
+                    var selectedFields = fieldsListView.SelectedItems.Cast<dynamic>()
+                        .Select(item => item.Field.ToString())
+                        .ToList();
+
+                    // Mevcut seçili alanları kaydet
+                    var currentSelections = new HashSet<string>();
+                    foreach (var field in _selectedFieldsForGraph)
                     {
-                        isMavlink2Text.Text = "Mavlink V2";
-                    }
-                    else
-                    {
-                        isMavlink2Text.Text = "Mavlink V1";
+                        if (field.sysid == message.sysid &&
+                            field.compid == message.compid &&
+                            field.msgid == message.msgid)
+                        {
+                            currentSelections.Add(field.field);
+                        }
                     }
 
-                    // Clear existing fields
-                    var currentSelection = _selectedFieldItem;
                     fieldsListView.Items.Clear();
 
                     var fields = message.data.GetType().GetFields();
-                    // Add each payload field to the ListView
                     foreach (var field in fields)
                     {
                         var value = field.GetValue(message.data);
@@ -682,18 +691,21 @@ public partial class MainWindow : Window
 
                         fieldsListView.Items.Add(item);
 
-                        // Eğer bu önceden seçili olan item ise, tekrar seç
-                        if (currentSelection != null &&
-                            item.Field == (currentSelection.GetType().GetProperty("Field")?.GetValue(currentSelection) as string))
+                        // Eğer bu alan daha önce seçiliyse, tekrar seç
+                        if (selectedFields.Contains(field.Name))
                         {
-                            fieldsListView.SelectedItem = item;
-                            _selectedFieldItem = item;
+                            fieldsListView.SelectedItems.Add(item);
+                        }
+
+                        // Eğer bu alan daha önce seçiliyse, tekrar seç
+                        if (currentSelections.Contains(field.Name))
+                        {
+                            fieldsListView.SelectedItems.Add(item);
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    // Show error in the fields list
                     fieldsListView.Items.Clear();
                     fieldsListView.Items.Add(new
                     {
@@ -720,7 +732,9 @@ public partial class MainWindow : Window
         try
         {
             _selectedMessages.Clear();
-            var selectedItems = GetSelectedTreeViewItems(treeView1);
+
+            // Tüm seçili öğeleri bul
+            var selectedItems = GetAllSelectedTreeViewItems(treeView1);
 
             foreach (var item in selectedItems)
             {
@@ -730,7 +744,7 @@ public partial class MainWindow : Window
                 }
             }
 
-            // En az bir mesaj seçiliyse göster
+            // En az bir mesaj seçiliyse ilk mesajın detaylarını göster
             if (_selectedMessages.Any())
             {
                 UpdateMessageDetails(_selectedMessages.First());
@@ -743,24 +757,29 @@ public partial class MainWindow : Window
     }
 
     // Yeni yardımcı metod ekleyin
-    private List<TreeViewItem> GetSelectedTreeViewItems(ItemsControl parent)
+    private List<TreeViewItem> GetAllSelectedTreeViewItems(TreeView treeView)
     {
-        var selected = new List<TreeViewItem>();
+        var selectedItems = new List<TreeViewItem>();
+        var queue = new Queue<ItemsControl>();
+        queue.Enqueue(treeView);
 
-        foreach (var item in parent.Items)
+        while (queue.Count > 0)
         {
-            if (item is TreeViewItem tvi)
+            var current = queue.Dequeue();
+            foreach (var item in current.Items)
             {
-                if (tvi.IsSelected)
+                if (item is TreeViewItem tvi)
                 {
-                    selected.Add(tvi);
+                    if (tvi.IsSelected)
+                    {
+                        selectedItems.Add(tvi);
+                    }
+                    queue.Enqueue(tvi);
                 }
-
-                selected.AddRange(GetSelectedTreeViewItems(tvi));
             }
         }
 
-        return selected;
+        return selectedItems;
     }
 
     /// <summary>
@@ -1060,6 +1079,43 @@ public partial class MainWindow : Window
         {
             _selectedFieldItem = item;
         }
+
+        // Yeni seçilen öğeleri ekle
+        foreach (dynamic item in e.AddedItems)
+        {
+            if (_currentlyDisplayedMessage != null)
+            {
+                var fieldToAdd = (
+                    _currentlyDisplayedMessage.sysid,
+                    _currentlyDisplayedMessage.compid,
+                    _currentlyDisplayedMessage.msgid,
+                    item.Field.ToString()
+                );
+
+                if (IsNumericType(item.Type.ToString()))
+                {
+                    _selectedFieldsForGraph.Add(((byte sysid, byte compid, uint msgid, string field))fieldToAdd);
+                }
+            }
+        }
+
+        // Seçimi kaldırılan öğeleri çıkar
+        foreach (dynamic item in e.RemovedItems)
+        {
+            if (_currentlyDisplayedMessage != null)
+            {
+                var fieldToRemove = (
+                    _currentlyDisplayedMessage.sysid,
+                    _currentlyDisplayedMessage.compid,
+                    _currentlyDisplayedMessage.msgid,
+                    item.Field.ToString()
+                );
+                _selectedFieldsForGraph.Remove(((byte sysid, byte compid, uint msgid, string field))fieldToRemove);
+            }
+        }
+
+        // Graph butonunu güncelle
+        _graphButton!.IsEnabled = _selectedFieldsForGraph.Count > 0;
     }
 
     /// <summary>
@@ -1215,27 +1271,29 @@ public partial class MainWindow : Window
 
             if (IsNumericType(fieldType))
             {
-                // Seçili olan tüm mesajlar için field'i grafiğe ekle
                 foreach (var message in _selectedMessages)
                 {
-                    fieldsToGraph.Add((message.sysid,
-                                     message.compid,
-                                     message.msgid,
-                                     fieldName));
+                    fieldsToGraph.Add((
+                        message.sysid,
+                        message.compid,
+                        message.msgid,
+                        fieldName
+                    ));
                 }
             }
             else
             {
-                invalidFields.Add(fieldName);
+                invalidFields.Add($"{fieldName} ({fieldType})");
             }
         }
 
         if (invalidFields.Any())
         {
-            MessageBox.Show($"The following fields cannot be graphed because they are not numeric:\n\n{string.Join("\n", invalidFields)}",
-                           "Invalid Fields",
-                           MessageBoxButton.OK,
-                           MessageBoxImage.Warning);
+            MessageBox.Show(
+                $"The following fields cannot be graphed because they are not numeric:\n\n{string.Join("\n", invalidFields)}",
+                "Invalid Fields",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
         }
 
         if (fieldsToGraph.Count > 0)
@@ -1245,11 +1303,63 @@ public partial class MainWindow : Window
         }
     }
 
+    // CTRL tuşu ile çoklu seçim için event handler ekle
+    private void TreeViewItem_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl))
+        {
+            var item = sender as TreeViewItem;
+            if (item != null)
+            {
+                item.IsSelected = !item.IsSelected;
+                e.Handled = true;
+            }
+        }
+    }
+
+    // IsNumericType metodunu güncelle
     private bool IsNumericType(string typeName)
     {
         return typeName.Contains("Int") ||
                typeName.Contains("Float") ||
                typeName.Contains("Double") ||
-               typeName.Contains("Decimal");
+               typeName.Contains("Decimal") ||
+               typeName.Contains("Single") || // System.Single için ekle
+               typeName == "System.Single" ||
+               typeName == "System.Byte";   // Tam tip adı kontrolü
+    }
+
+    private void InitializeGraphButton()
+    {
+        _graphButton = new Button
+        {
+            Content = "Graph Selected Fields",
+            Width = 150,
+            Height = 30,
+            Margin = new Thickness(5),
+            IsEnabled = false
+        };
+        _graphButton.Click += GraphButton_Click;
+
+        // Button'u StatusBar'a ekle
+        var separator = new Separator();
+        statusBar.Items.Add(separator);
+        statusBar.Items.Add(new StatusBarItem { Content = _graphButton });
+    }
+
+    private void GraphButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedFieldsForGraph.Count > 0)
+        {
+            var graphWindow = new GraphWindow(_mavInspector, _selectedFieldsForGraph);
+            graphWindow.Show();
+
+            // Graph açıldıktan sonra seçimleri temizle
+            _selectedFieldsForGraph.Clear();
+            _graphButton!.IsEnabled = false;
+
+            // ListView seçimlerini temizle
+            fieldsListView.SelectedItems.Clear();
+        }
     }
 } // MainWindow class ends here
