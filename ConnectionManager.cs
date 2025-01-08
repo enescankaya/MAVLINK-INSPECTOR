@@ -18,11 +18,18 @@ public class ConnectionManager : IAsyncDisposable
     public event Action<MAVLink.MAVLinkMessage>? OnMessageReceived;
     public event Action<MAVLink.MAVLinkMessage>? OnMessageSent;
 
+    /// <summary>
+    /// Bağlantı yöneticisi oluşturur.
+    /// </summary>
     public ConnectionManager()
     {
         _dataChannel = Channel.CreateUnbounded<byte[]>();
     }
 
+    /// <summary>
+    /// Bağlantıyı asenkron olarak başlatır.
+    /// </summary>
+    /// <param name="parameters">Bağlantı parametreleri.</param>
     public async Task ConnectAsync(ConnectionParameters parameters)
     {
         await DisconnectAsync();
@@ -40,6 +47,10 @@ public class ConnectionManager : IAsyncDisposable
         _ = ForwardDataAsync(_cts.Token);
     }
 
+    /// <summary>
+    /// Gelen verileri iletir.
+    /// </summary>
+    /// <param name="ct">İptal belirteci.</param>
     private async Task ForwardDataAsync(CancellationToken ct)
     {
         if (_connection == null) return;
@@ -94,6 +105,10 @@ public class ConnectionManager : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Mesajı asenkron olarak gönderir.
+    /// </summary>
+    /// <param name="message">Gönderilecek mesaj.</param>
     public async Task SendAsync(MAVLink.MAVLinkMessage message)
     {
         if (_connection == null) return;
@@ -111,6 +126,9 @@ public class ConnectionManager : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Bağlantıyı asenkron olarak sonlandırır.
+    /// </summary>
     public async Task DisconnectAsync()
     {
         if (_connection != null)
@@ -122,6 +140,9 @@ public class ConnectionManager : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Nesneyi asenkron olarak imha eder.
+    /// </summary>
     public async ValueTask DisposeAsync()
     {
         await DisconnectAsync();

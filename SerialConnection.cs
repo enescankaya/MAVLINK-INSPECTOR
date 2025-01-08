@@ -16,6 +16,11 @@ public class SerialConnection : IConnection
     public bool IsDisposed => _isDisposed;
     public ChannelReader<byte[]> DataChannel => _dataChannel.Reader;
 
+    /// <summary>
+    /// Seri bağlantı oluşturur.
+    /// </summary>
+    /// <param name="portName">Port adı.</param>
+    /// <param name="baudRate">Baud hızı.</param>
     public SerialConnection(string portName, int baudRate)
     {
         _port = new SerialPort(portName, baudRate)
@@ -31,6 +36,10 @@ public class SerialConnection : IConnection
         });
     }
 
+    /// <summary>
+    /// Bağlantıyı asenkron olarak başlatır.
+    /// </summary>
+    /// <param name="cancellationToken">İptal belirteci.</param>
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
         await _connectionLock.WaitAsync(cancellationToken);
@@ -54,6 +63,11 @@ public class SerialConnection : IConnection
         }
     }
 
+    /// <summary>
+    /// Seri porttan veri alındığında çağrılır.
+    /// </summary>
+    /// <param name="sender">Gönderen nesne.</param>
+    /// <param name="e">Veri alındı olayı.</param>
     private void Port_DataReceived(object sender, SerialDataReceivedEventArgs e)
     {
         if (_isDisposed || !IsConnected) return;
@@ -77,11 +91,19 @@ public class SerialConnection : IConnection
         }
     }
 
+    /// <summary>
+    /// Seri portta hata alındığında çağrılır.
+    /// </summary>
+    /// <param name="sender">Gönderen nesne.</param>
+    /// <param name="e">Hata alındı olayı.</param>
     private void Port_ErrorReceived(object sender, SerialErrorReceivedEventArgs e)
     {
         _ = DisconnectAsync();
     }
 
+    /// <summary>
+    /// Bağlantıyı asenkron olarak sonlandırır.
+    /// </summary>
     public async Task DisconnectAsync()
     {
         await _connectionLock.WaitAsync();
@@ -101,6 +123,11 @@ public class SerialConnection : IConnection
         }
     }
 
+    /// <summary>
+    /// Veriyi asenkron olarak gönderir.
+    /// </summary>
+    /// <param name="data">Gönderilecek veri.</param>
+    /// <param name="cancellationToken">İptal belirteci.</param>
     public async Task SendAsync(byte[] data, CancellationToken cancellationToken = default)
     {
         if (_isDisposed || !IsConnected) return;
@@ -117,6 +144,9 @@ public class SerialConnection : IConnection
         }
     }
 
+    /// <summary>
+    /// Nesneyi asenkron olarak imha eder.
+    /// </summary>
     public async ValueTask DisposeAsync()
     {
         if (_isDisposed) return;

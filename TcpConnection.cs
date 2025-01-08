@@ -20,6 +20,11 @@ public class TcpConnection : IConnection
     public bool IsDisposed => _isDisposed;
     public ChannelReader<byte[]> DataChannel => _dataChannel.Reader;
 
+    /// <summary>
+    /// TCP bağlantısı oluşturur.
+    /// </summary>
+    /// <param name="host">Sunucu adresi.</param>
+    /// <param name="port">Port numarası.</param>
     public TcpConnection(string host, int port)
     {
         _host = host;
@@ -30,6 +35,10 @@ public class TcpConnection : IConnection
         });
     }
 
+    /// <summary>
+    /// Bağlantıyı asenkron olarak başlatır.
+    /// </summary>
+    /// <param name="cancellationToken">İptal belirteci.</param>
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
         await _connectionLock.WaitAsync(cancellationToken);
@@ -50,6 +59,10 @@ public class TcpConnection : IConnection
         }
     }
 
+    /// <summary>
+    /// TCP verilerini okuma döngüsü.
+    /// </summary>
+    /// <param name="ct">İptal belirteci.</param>
     private async Task ReadLoopAsync(CancellationToken ct)
     {
         var buffer = new byte[4096];
@@ -76,6 +89,9 @@ public class TcpConnection : IConnection
         }
     }
 
+    /// <summary>
+    /// Bağlantıyı asenkron olarak sonlandırır.
+    /// </summary>
     public async Task DisconnectAsync()
     {
         await _connectionLock.WaitAsync();
@@ -117,6 +133,11 @@ public class TcpConnection : IConnection
         }
     }
 
+    /// <summary>
+    /// Veriyi asenkron olarak gönderir.
+    /// </summary>
+    /// <param name="data">Gönderilecek veri.</param>
+    /// <param name="cancellationToken">İptal belirteci.</param>
     public async Task SendAsync(byte[] data, CancellationToken cancellationToken = default)
     {
         if (_isDisposed || !IsConnected) return;
@@ -133,6 +154,9 @@ public class TcpConnection : IConnection
         }
     }
 
+    /// <summary>
+    /// Nesneyi asenkron olarak imha eder.
+    /// </summary>
     public async ValueTask DisposeAsync()
     {
         if (_isDisposed) return;
@@ -143,7 +167,9 @@ public class TcpConnection : IConnection
         _connectionLock.Dispose();
     }
 
-    // Socket timeout ve keep-alive ayarları ekle
+    /// <summary>
+    /// Soket yapılandırmasını ayarlar.
+    /// </summary>
     private void ConfigureSocket()
     {
         if (_client?.Client == null) return;

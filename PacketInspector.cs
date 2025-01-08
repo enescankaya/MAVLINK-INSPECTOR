@@ -83,17 +83,31 @@ namespace MavlinkInspector
             }
         }
 
+        /// <summary>
+        /// Görülen sistem kimliklerini döndürür.
+        /// </summary>
+        /// <returns>Görülen sistem kimliklerinin listesi.</returns>
         public List<byte> SeenSysid()
         {
             return toArray(_history.Keys).Select(id => GetFromID(id).sysid).ToList();
         }
 
+        /// <summary>
+        /// Görülen bileşen kimliklerini döndürür.
+        /// </summary>
+        /// <returns>Görülen bileşen kimliklerinin listesi.</returns>
         public List<byte> SeenCompid()
         {
             return toArray(_history.Keys).Select(id => GetFromID(id).compid).ToList();
         }
 
-        // Rate hesaplama mantığı optimize edildi
+        /// <summary>
+        /// Belirtilen mesajın gönderim hızını hesaplar.
+        /// </summary>
+        /// <param name="sysid">Sistem kimliği.</param>
+        /// <param name="compid">Bileşen kimliği.</param>
+        /// <param name="msgid">Mesaj kimliği.</param>
+        /// <returns>Mesaj gönderim hızı (Hz).</returns>
         public double GetMessageRate(byte sysid, byte compid, uint msgid)
         {
             var id = GetID(sysid, compid);
@@ -114,7 +128,13 @@ namespace MavlinkInspector
             return messageCount / timeSpan;
         }
 
-        // BPS hesaplaması optimize edildi
+        /// <summary>
+        /// Belirtilen mesajın bant genişliğini hesaplar.
+        /// </summary>
+        /// <param name="sysid">Sistem kimliği.</param>
+        /// <param name="compid">Bileşen kimliği.</param>
+        /// <param name="msgid">Mesaj kimliği.</param>
+        /// <returns>Bant genişliği (bps).</returns>
         public double GetBps(byte sysid, byte compid, uint msgid)
         {
             var id = GetID(sysid, compid);
@@ -135,6 +155,14 @@ namespace MavlinkInspector
             return totalBits / timeSpan;
         }
 
+        /// <summary>
+        /// Yeni bir mesaj ekler.
+        /// </summary>
+        /// <param name="sysid">Sistem kimliği.</param>
+        /// <param name="compid">Bileşen kimliği.</param>
+        /// <param name="msgid">Mesaj kimliği.</param>
+        /// <param name="message">Mesaj içeriği.</param>
+        /// <param name="size">Mesaj boyutu.</param>
         public void Add(byte sysid, byte compid, uint msgid, T message, int size)
         {
             var id = GetID(sysid, compid);
@@ -164,12 +192,19 @@ namespace MavlinkInspector
             }
         }
 
+        /// <summary>
+        /// Paket mesajlarını döndürür.
+        /// </summary>
+        /// <returns>Paket mesajlarının listesi.</returns>
         public IEnumerable<T> GetPacketMessages()
         {
             return toArray(_history.Values)
                 .SelectMany(messages => toArray(messages.Values));
         }
 
+        /// <summary>
+        /// Tüm verileri temizler.
+        /// </summary>
         public void Clear()
         {
             _history.Clear();
@@ -181,6 +216,11 @@ namespace MavlinkInspector
             NewSysidCompid?.Invoke(this, EventArgs.Empty);
         }
 
+        /// <summary>
+        /// Belirtilen sistem ve bileşen kimliklerine ait verileri temizler.
+        /// </summary>
+        /// <param name="sysid">Sistem kimliği.</param>
+        /// <param name="compid">Bileşen kimliği.</param>
         public void Clear(byte sysid, byte compid)
         {
             var id = GetID(sysid, compid);
@@ -202,6 +242,12 @@ namespace MavlinkInspector
             NewSysidCompid?.Invoke(this, EventArgs.Empty);
         }
 
+        /// <summary>
+        /// Belirtilen sistem ve bileşen kimliklerine ait mesajları döndürür.
+        /// </summary>
+        /// <param name="sysid">Sistem kimliği.</param>
+        /// <param name="compid">Bileşen kimliği.</param>
+        /// <returns>Mesajların listesi.</returns>
         public IEnumerable<T> this[byte sysid, byte compid]
         {
             get
@@ -223,6 +269,14 @@ namespace MavlinkInspector
             return ((byte)(id >> 8), (byte)(id & 0xFF));
         }
 
+        /// <summary>
+        /// Belirtilen sistem ve bileşen kimliklerine ait en son mesajı döndürmeye çalışır.
+        /// </summary>
+        /// <param name="sysid">Sistem kimliği.</param>
+        /// <param name="compid">Bileşen kimliği.</param>
+        /// <param name="msgid">Mesaj kimliği.</param>
+        /// <param name="message">En son mesaj.</param>
+        /// <returns>En son mesajın başarıyla döndürülüp döndürülmediği.</returns>
         public bool TryGetLatestMessage(byte sysid, byte compid, uint msgid, out T message)
         {
             message = default;

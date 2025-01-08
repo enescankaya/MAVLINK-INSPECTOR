@@ -21,6 +21,11 @@ public class UdpConnection : IConnection
     public bool IsDisposed => _isDisposed;
     public ChannelReader<byte[]> DataChannel => _dataChannel.Reader;
 
+    /// <summary>
+    /// UDP bağlantısı oluşturur.
+    /// </summary>
+    /// <param name="host">Sunucu adresi.</param>
+    /// <param name="port">Port numarası.</param>
     public UdpConnection(string host, int port)
     {
         _host = host;
@@ -31,6 +36,10 @@ public class UdpConnection : IConnection
         });
     }
 
+    /// <summary>
+    /// Bağlantıyı asenkron olarak başlatır.
+    /// </summary>
+    /// <param name="cancellationToken">İptal belirteci.</param>
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
         await _connectionLock.WaitAsync(cancellationToken);
@@ -67,6 +76,10 @@ public class UdpConnection : IConnection
         }
     }
 
+    /// <summary>
+    /// UDP verilerini okuma döngüsü.
+    /// </summary>
+    /// <param name="ct">İptal belirteci.</param>
     private async Task ReadLoopAsync(CancellationToken ct)
     {
         try
@@ -98,6 +111,9 @@ public class UdpConnection : IConnection
         }
     }
 
+    /// <summary>
+    /// Bağlantıyı asenkron olarak sonlandırır.
+    /// </summary>
     public async Task DisconnectAsync()
     {
         await _connectionLock.WaitAsync();
@@ -121,6 +137,9 @@ public class UdpConnection : IConnection
         }
     }
 
+    /// <summary>
+    /// Nesneyi asenkron olarak imha eder.
+    /// </summary>
     public async ValueTask DisposeAsync()
     {
         if (_isDisposed) return;
@@ -129,6 +148,11 @@ public class UdpConnection : IConnection
         _readCts?.Dispose();
     }
 
+    /// <summary>
+    /// Veriyi asenkron olarak gönderir.
+    /// </summary>
+    /// <param name="data">Gönderilecek veri.</param>
+    /// <param name="cancellationToken">İptal belirteci.</param>
     public async Task SendAsync(byte[] data, CancellationToken cancellationToken = default)
     {
         if (_isDisposed || _client == null) return;
