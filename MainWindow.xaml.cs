@@ -102,6 +102,8 @@ public partial class MainWindow : Window
 
         ShowGCSTraffic.Checked += (s, e) =>
         {
+            MessageBox.Show("ccc");
+
             _connectionManager.OnMessageReceived += HandleMessage;
             _connectionManager.OnMessageSent += HandleMessage;
             RefreshTreeView();
@@ -314,25 +316,6 @@ public partial class MainWindow : Window
             // Hata durumunda sessizce devam et
         }
     }
-
-    private async Task ProcessMessageAsync(MAVLink.MAVLinkMessage message)
-    {
-        if (!ShowGCSTraffic.IsChecked.GetValueOrDefault() && message.sysid == 255)
-            return;
-
-        _mavInspector.Add(message.sysid, message.compid, message.msgid, message, message.Length);
-
-        Interlocked.Increment(ref _totalMessages);
-        Interlocked.Increment(ref _messagesSinceLastUpdate);
-
-        var now = DateTime.UtcNow;
-        if ((now - _lastUIUpdate).TotalMilliseconds >= UI_UPDATE_THRESHOLD)
-        {
-            _lastUIUpdate = now;
-            await UpdateUIAsync(message);
-        }
-    }
-
     private async Task UpdateUIAsync(MAVLink.MAVLinkMessage message)
     {
         var rate = _mavInspector.GetMessageRate(message.sysid, message.compid, message.msgid);
