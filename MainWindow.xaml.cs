@@ -110,7 +110,7 @@ public partial class MainWindow : Window
         {
             _connectionManager.OnMessageSent -= HandleMessage;
             RemoveGCSTrafficFromTreeView();
-            ResetButton_Click(s,e);
+            ResetButton_Click(s, e);
         };
 
         // Başlangıçta GCS trafiğini dinlemeye başla
@@ -285,24 +285,14 @@ public partial class MainWindow : Window
 
     private void HandleMessage(MAVLink.MAVLinkMessage message)
     {
-        // GCS trafiğini (sysid 255) veya diğer trafiği göster
-        if (ShowGCSTraffic.IsChecked.GetValueOrDefault() || message.sysid != 255)
-        {
-            Dispatcher.BeginInvoke(() =>
-            {
-                try
-                {
-                    // Mesajı işle ve UI'ı güncelle
-                    _mavInspector.Add(message.sysid, message.compid, message.msgid, message, message.Length);
-                    var rate = _mavInspector.GetMessageRate(message.sysid, message.compid, message.msgid);
-                    UpdateTreeViewForMessage(message, rate);
-                }
-                catch (Exception)
-                {
-                    // Hata durumunda sessizce devam et
-                }
-            });
-        }
+        // GCS trafiği kontrolü
+        if (message.sysid == 255 && !ShowGCSTraffic.IsChecked.GetValueOrDefault())
+            return;
+
+        // Mesajı ekle ama UI güncellemesini timer'a bırak
+        _mavInspector.Add(message.sysid, message.compid, message.msgid, message, message.Length);
+        Interlocked.Increment(ref _totalMessages);
+        Interlocked.Increment(ref _messagesSinceLastUpdate);
     }
 
     private void ProcessMessage(MAVLink.MAVLinkMessage message)
@@ -742,35 +732,54 @@ public partial class MainWindow : Window
 
     private void ConfigureUpdateTimers()
     {
-        // TreeView güncellemesi için timer
+        // TreeView update timer
         _treeViewUpdateTimer.Interval = TimeSpan.FromMilliseconds(UPDATE_INTERVAL_MS);
-        _treeViewUpdateTimer.Tick += (s, e) => UpdateTreeView();
-        _treeViewUpdateTimer.Start();
+        _treeViewUpdateTimer.Tick += async (s, e) =>
+        {
+            var now = DateTime.Now;
+            if ((now - _lastTreeViewUpdate).TotalMilliseconds >= UPDATE_INTERVAL_MS)
+            {
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    UpdateTreeView();
+                }, DispatcherPriority.Background);
+                _lastTreeViewUpdate = now;
+            }
+        };
 
-        // Message details güncellemesi için timer
+        // Details update timer
         _detailsUpdateTimer.Interval = TimeSpan.FromMilliseconds(UPDATE_INTERVAL_MS);
-        _detailsUpdateTimer.Tick += (s, e) => UpdateMessageDetailsIfNeeded();
+        _detailsUpdateTimer.Tick += (s, e) =>
+        {
+            var now = DateTime.Now;
+            if ((now - _lastDetailsUpdate).TotalMilliseconds >= UPDATE_INTERVAL_MS)
+            {
+                UpdateMessageDetailsIfNeeded();
+                _lastDetailsUpdate = now;
+            }
+        };
+
+        // Timer'ları başlat
+        _treeViewUpdateTimer.Start();
         _detailsUpdateTimer.Start();
     }
 
     private void UpdateTreeView()
     {
-        if ((DateTime.Now - _lastTreeViewUpdate).TotalMilliseconds < UPDATE_INTERVAL_MS)
-            return;
-
         try
         {
             lock (_treeUpdateLock)
             {
-                var messages = _mavInspector.GetPacketMessages().ToList();
+                var messages = _mavInspector.GetPacketMessages()
+                    .Where(m => ShowGCSTraffic.IsChecked.GetValueOrDefault() || m.sysid != 255)
+                    .ToList();
+
                 foreach (var message in messages)
                 {
                     var rate = _mavInspector.GetMessageRate(message.sysid, message.compid, message.msgid);
                     UpdateTreeViewForMessage(message, rate);
                 }
             }
-
-            _lastTreeViewUpdate = DateTime.Now;
         }
         catch (Exception ex)
         {
@@ -812,11 +821,24 @@ public partial class MainWindow : Window
     {
         if (UpdateIntervalComboBox.SelectedValue is int newInterval)
         {
+            // Timer'ları durdur
+            _treeViewUpdateTimer.Stop();
+            _detailsUpdateTimer.Stop();
+
+            // Yeni interval değerini ayarla
             UPDATE_INTERVAL_MS = newInterval;
 
-            // Timer'ları yeni interval ile güncelle
+            // Timer'ları yeni interval ile yapılandır
             _treeViewUpdateTimer.Interval = TimeSpan.FromMilliseconds(UPDATE_INTERVAL_MS);
             _detailsUpdateTimer.Interval = TimeSpan.FromMilliseconds(UPDATE_INTERVAL_MS);
+
+            // Zaman damgalarını sıfırla
+            _lastTreeViewUpdate = DateTime.Now;
+            _lastDetailsUpdate = DateTime.Now;
+
+            // Timer'ları yeniden başlat
+            _treeViewUpdateTimer.Start();
+            _detailsUpdateTimer.Start();
         }
     }
 
