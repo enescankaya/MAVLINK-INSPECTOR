@@ -1,10 +1,7 @@
 ﻿using System.Collections.Concurrent;
-using System.Text;
 using System.Windows.Controls;
 using System.Windows;
 using System.Windows.Media;
-using System.Diagnostics;
-using System.Windows.Interop;
 
 namespace MavlinkInspector;
 
@@ -13,13 +10,52 @@ namespace MavlinkInspector;
 /// </summary>
 public static class Extensions
 {
-    private static readonly ConcurrentDictionary<string, WeakReference<TreeViewItem>> _itemCache =
-        new ConcurrentDictionary<string, WeakReference<TreeViewItem>>();
+    // Cache yönetimi için sabitler
+    private const int CACHE_CLEANUP_INTERVAL = 60000; // 1 dakika
+    private const int MAX_CACHE_SIZE = 1000;
 
-    public static IntPtr GetHandle(this Window window)
+    private static readonly ConcurrentDictionary<string, WeakReference<TreeViewItem>> _itemCache = new();
+    private static readonly Timer _cleanupTimer;
+    private static readonly object _cleanupLock = new();
+
+    static Extensions()
     {
-        return new WindowInteropHelper(window).Handle;
+        // Cache cleanup timer'ı başlat
+        _cleanupTimer = new Timer(CleanupCache, null, CACHE_CLEANUP_INTERVAL, CACHE_CLEANUP_INTERVAL);
     }
+
+    private static void CleanupCache(object? state)
+    {
+        if (!Monitor.TryEnter(_cleanupLock)) return;
+
+        try
+        {
+            var keysToRemove = _itemCache
+                .Where(kvp => !kvp.Value.TryGetTarget(out _))
+                .Select(kvp => kvp.Key)
+                .ToList();
+
+            foreach (var key in keysToRemove)
+            {
+                _itemCache.TryRemove(key, out _);
+            }
+
+            // Cache boyutu kontrolü
+            if (_itemCache.Count > MAX_CACHE_SIZE)
+            {
+                var excessKeys = _itemCache.Keys.Take(_itemCache.Count - MAX_CACHE_SIZE);
+                foreach (var key in excessKeys)
+                {
+                    _itemCache.TryRemove(key, out _);
+                }
+            }
+        }
+        finally
+        {
+            Monitor.Exit(_cleanupLock);
+        }
+    }
+
     /// <summary>
     /// Belirtilen başlık ve etiketle bir TreeViewItem bulur veya oluşturur.
     /// </summary>
@@ -30,6 +66,15 @@ public static class Extensions
     /// <returns>TreeViewItem.</returns>
     public static TreeViewItem FindOrCreateChild(this ItemsControl parent, string header, object tag, object? data = null)
     {
+        var cacheKey = $"{header}_{tag}";
+
+        if (_itemCache.TryGetValue(cacheKey, out var weakRef) &&
+            weakRef.TryGetTarget(out var cachedItem) &&
+            parent.Items.Contains(cachedItem))
+        {
+            return cachedItem;
+        }
+
         var item = parent.Items.OfType<TreeViewItem>()
                              .FirstOrDefault(item => item.Tag?.Equals(tag) == true);
 
@@ -43,7 +88,14 @@ public static class Extensions
                 IsExpanded = true
             };
             parent.Items.Add(item);
-            SortTreeItems(parent);
+
+            // Sıralama için optimizasyon
+            if (parent.Items.Count > 1)
+            {
+                BatchSortTreeItems(parent);
+            }
+
+            _itemCache[cacheKey] = new WeakReference<TreeViewItem>(item);
         }
         else if (item.Header.ToString() != header)
         {
@@ -51,6 +103,40 @@ public static class Extensions
         }
 
         return item;
+    }
+
+    // Batch sorting için yeni metod
+    private static void BatchSortTreeItems(ItemsControl parent)
+    {
+        var items = parent.Items.Cast<TreeViewItem>().ToList();
+        if (items.Count <= 1) return;
+
+        var needsSort = false;
+        for (int i = 1; i < items.Count; i++)
+        {
+            if (CompareTreeItems(items[i - 1], items[i]) > 0)
+            {
+                needsSort = true;
+                break;
+            }
+        }
+
+        if (needsSort)
+        {
+            items.Sort(CompareTreeItems);
+            parent.Items.Clear();
+            foreach (var item in items)
+            {
+                parent.Items.Add(item);
+            }
+        }
+    }
+
+    private static int CompareTreeItems(TreeViewItem x, TreeViewItem y)
+    {
+        string xText = GetSortableText(x);
+        string yText = GetSortableText(y);
+        return string.Compare(xText, yText, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

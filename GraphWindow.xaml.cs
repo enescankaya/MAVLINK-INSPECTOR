@@ -1,17 +1,13 @@
 ﻿using LiveCharts;
 using LiveCharts.Wpf;
 using System.Windows;
-using System.Collections.Generic;
 using System.Windows.Media;
 using System.Collections.ObjectModel;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using System.ComponentModel;
-using System.Linq;
-using System.Diagnostics;
 using System.Collections.Concurrent; // ConcurrentDictionary için ekleyin
 using System.Windows.Interop; // HwndSource için
-using System.Windows.Media; // CompositionTarget için
 using System.Threading.Channels; // Channel için
 
 namespace MavlinkInspector
@@ -36,21 +32,32 @@ namespace MavlinkInspector
         public StatisticsInfo Statistics { get; set; } = new StatisticsInfo();
     }
 
-    public partial class GraphWindow : Window
+    public partial class GraphWindow : Window, IDisposable
     {
-        // Pencere yönetimi için static üyeler
-        private static readonly HashSet<GraphWindow> _activeWindows = new();
-        private static readonly object _windowLock = new();
-
-        // Performans optimizasyonu için değişkenler
-        private BatchProcessor<(string key, double value)> _batchProcessor;
+        // Constants
         private const int BATCH_SIZE = 100;
         private const int PROCESS_INTERVAL_MS = 16; // ~60 FPS
-        private readonly CancellationTokenSource _cts = new();
+        private const int MIN_UPDATE_INTERVAL = 16;
+        private const int DEFAULT_UPDATE_INTERVAL = 50;
+        private const int MAX_BATCH_SIZE = 20;
+        private const int RENDER_TIMEOUT_MS = 100;
+        private const int RESIZE_DELAY = 100;
 
+        // Thread-safe collections
+        private readonly ConcurrentDictionary<string, FieldStatistics> _fieldStats = new();
+        private static readonly HashSet<GraphWindow> _activeWindows = new();
+        private static readonly SemaphoreSlim _renderLock = new(1, 1);
+        private static readonly object _windowLock = new();
+
+        // Resource management
+        private readonly CancellationTokenSource _cts = new();
         private bool _isDisposed;
+        private BatchProcessor<(string key, double value)> _batchProcessor;
+
+        // Performance tracking
         private int _lastUpdateTick;
-        private const int MIN_UPDATE_INTERVAL = 16; // ~60 FPS
+        private bool _isResizing;
+        private bool _isDragging;
 
         private readonly SeriesCollection _seriesCollection;
         private readonly Dictionary<string, ChartValues<double>> _valuesByField;
@@ -76,9 +83,6 @@ namespace MavlinkInspector
             public double Mean => Count > 0 ? Sum / Count : 0;
         }
 
-        // Dictionary yerine ConcurrentDictionary kullanın
-        private readonly ConcurrentDictionary<string, FieldStatistics> _fieldStats = new();
-
         private readonly Color[] _graphColors = new[]
         {
             Color.FromRgb(255, 99, 132),   // Kırmızı
@@ -91,16 +95,7 @@ namespace MavlinkInspector
             Color.FromRgb(250, 120, 200)   // Pembe
         };
 
-        private bool _isResizing = false;
         private readonly DispatcherTimer _resizeTimer;
-        private const int RESIZE_DELAY = 100; // ms
-        private bool _isDragging = false;
-
-        private static readonly SemaphoreSlim _renderLock = new(1, 1);
-        private const int RENDER_TIMEOUT_MS = 100;
-
-        private const int DEFAULT_UPDATE_INTERVAL = 50; // 50ms (20Hz)
-        private const int MAX_BATCH_SIZE = 20; // Tek seferde işlenecek maksimum veri sayısı
 
         public GraphWindow(PacketInspector<MAVLink.MAVLinkMessage> inspector, IEnumerable<(byte sysid, byte compid, uint msgid, string field)> fields)
         {
@@ -109,23 +104,23 @@ namespace MavlinkInspector
             // Window yapılandırması
             Owner = Application.Current.MainWindow; // MainWindow'u parent olarak ayarla
 
-            // Batch işleme yapılandırması
+            // GPU optimizations
+            RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.LowQuality);
+            RenderOptions.SetEdgeMode(this, EdgeMode.Aliased);
+            RenderOptions.SetCachingHint(this, CachingHint.Cache);
+
+            // Initialize batch processor
             _batchProcessor = new BatchProcessor<(string key, double value)>(
                 ProcessBatch,
                 MAX_BATCH_SIZE,
                 TimeSpan.FromMilliseconds(DEFAULT_UPDATE_INTERVAL),
                 _cts.Token);
 
-            // Window yönetimi
+            // Window management
             lock (_windowLock)
             {
                 _activeWindows.Add(this);
             }
-
-            // GPU ve bellek optimizasyonları
-            RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.LowQuality);
-            RenderOptions.SetEdgeMode(this, EdgeMode.Aliased);
-            RenderOptions.SetCachingHint(this, CachingHint.Cache);
 
             // CompositionTarget.Rendering event'ine direkt subscribe ol
             CompositionTarget.Rendering += CompositionTarget_Rendering;
@@ -372,7 +367,6 @@ namespace MavlinkInspector
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                Debug.WriteLine($"Update error: {ex.Message}");
             }
         }
 
@@ -611,13 +605,14 @@ namespace MavlinkInspector
                     {
                         ProcessValue(key, value);
                     }
-                    Chart.UpdateLayout();
-                    StatisticsGrid.Items.Refresh();
+                    if (!_isResizing && !_isDragging)
+                    {
+                        Chart.UpdateLayout();
+                    }
                 }, DispatcherPriority.Send);
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"ProcessBatch error: {ex.Message}");
             }
         }
 
@@ -649,31 +644,77 @@ namespace MavlinkInspector
             try
             {
                 var filteredValue = ApplyFilter(key, value);
-                var values = _valuesByField[key];
 
-                var maxSamples = int.Parse(((ComboBoxItem)SampleCountCombo.SelectedItem).Content.ToString()!);
-                while (values.Count > maxSamples)
+                if (_valuesByField.TryGetValue(key, out var values))
                 {
-                    values.RemoveAt(0);
+                    var maxSamples = GetMaxSamples();
+                    while (values.Count >= maxSamples)
+                    {
+                        values.RemoveAt(0);
+                    }
+                    values.Add(filteredValue);
+
+                    UpdateStatistics(key, filteredValue);
+                    UpdateLegendItem(key, filteredValue);
                 }
+            }
+            catch (Exception ex)
+            {
+            }
+        }
 
-                values.Add(filteredValue);
-                UpdateStatistics(key, filteredValue);
-
-                var legendItem = _legendItems.FirstOrDefault(x => x.Title.Contains(key.Split('_').Last()));
-                if (legendItem != null)
+        private int GetMaxSamples()
+        {
+            if (SampleCountCombo.SelectedItem is ComboBoxItem item)
+            {
+                if (int.TryParse(item.Content.ToString(), out int maxSamples))
                 {
-                    var stats = _fieldStats[key];
-                    legendItem.Value = filteredValue;
+                    return maxSamples;
+                }
+            }
+            return 100; // Default value
+        }
+
+        private void UpdateLegendItem(string key, double value)
+        {
+            var index = _trackedFields.FindIndex(f => GetFieldKey(f) == key);
+            if (index >= 0 && index < _legendItems.Count)
+            {
+                var legendItem = _legendItems[index];
+                legendItem.Value = value;
+
+                if (_fieldStats.TryGetValue(key, out var stats))
+                {
                     legendItem.Statistics.Min = stats.Min;
                     legendItem.Statistics.Max = stats.Max;
                     legendItem.Statistics.Mean = stats.Mean;
                 }
             }
-            catch (Exception ex)
+        }
+
+        // IDisposable implementation
+        public void Dispose()
+        {
+            if (_isDisposed) return;
+
+            _isDisposed = true;
+            _cts.Cancel();
+
+            CompositionTarget.Rendering -= CompositionTarget_Rendering;
+            _batchProcessor?.Dispose();
+            _cts?.Dispose();
+            _renderLock?.Dispose();
+
+            lock (_windowLock)
             {
-                Debug.WriteLine($"ProcessValue error: {ex.Message}");
+                _activeWindows.Remove(this);
             }
+
+            // Clear collections
+            _seriesCollection?.Clear();
+            _valuesByField?.Clear();
+            _fieldStats?.Clear();
+            _legendItems?.Clear();
         }
     }
 

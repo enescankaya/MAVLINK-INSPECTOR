@@ -6,18 +6,42 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.ComponentModel;
 using System.Windows.Input;
 using System.Windows.Controls.Primitives;
 
 namespace MavlinkInspector;
 
+// Enum tanımlamaları ekle
+public enum ConnectionType
+{
+    Serial,
+    TCP,
+    UDP
+}
+
+public enum UpdateInterval
+{
+    Fast = 100,
+    Normal = 200,
+    Slow = 500,
+    VerySlow = 1000
+}
+
 public partial class MainWindow : Window
 {
+    // Sabit değerler için const tanımlamaları
+    private const int MAX_CACHED_COLORS = 1000;
+    private const int MAX_MESSAGE_QUEUE_SIZE = 5000;
+    private const int CLEANUP_INTERVAL_MS = 30000; // 30 saniye
+
+    // Mevcut field tanımlamaları yerine daha optimize versiyonları
+    private readonly ConcurrentDictionary<uint, Color> _messageColors = new(Environment.ProcessorCount, MAX_CACHED_COLORS);
+    private readonly ConcurrentQueue<MAVLink.MAVLinkMessage> _messageQueue = new();
+    private readonly DispatcherTimer _cleanupTimer = new();
+
     private readonly PacketInspector<MAVLink.MAVLinkMessage> _mavInspector = new();
     private readonly DispatcherTimer _timer = new();
-    private Dictionary<uint, Color> _messageColors = new();
     private readonly Random _random = new();
     private ConnectionManager _connectionManager = new();
     private int _totalMessages;
@@ -37,7 +61,6 @@ public partial class MainWindow : Window
     // Eklenen yeni sabitler
     private const int UI_BATCH_SIZE = 10;
     private const int UI_UPDATE_DELAY_MS = 50;
-    private readonly Queue<MAVLink.MAVLinkMessage> _messageQueue = new();
 
     // Yeni timer değişkenleri ekle
     private readonly DispatcherTimer _treeViewUpdateTimer = new();
@@ -85,6 +108,11 @@ public partial class MainWindow : Window
         InitializeSearchFeatures();
         InitializeGraphingFeatures();
         InitializeGraphButton();
+
+        // Cleanup timer'ı başlat
+        _cleanupTimer.Interval = TimeSpan.FromMilliseconds(CLEANUP_INTERVAL_MS);
+        _cleanupTimer.Tick += CleanupTimer_Tick;
+        _cleanupTimer.Start();
     }
 
     /// <summary>
@@ -155,7 +183,6 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Remove GCS Traffic Error: {ex.Message}");
         }
     }
 
@@ -178,7 +205,6 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Refresh TreeView Error: {ex.Message}");
         }
     }
 
@@ -480,7 +506,6 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"UpdateTreeViewForMessage error: {ex.Message}");
         }
     }
 
@@ -752,7 +777,6 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Selection change error: {ex.Message}");
         }
     }
 
@@ -973,6 +997,7 @@ public partial class MainWindow : Window
             {
                 var messages = _mavInspector.GetPacketMessages()
                     .Where(m => ShowGCSTraffic.IsChecked.GetValueOrDefault() || m.sysid != 255)
+                    .Take(MAX_TREE_ITEMS) // Maksimum öğe sayısını sınırla
                     .ToList();
 
                 foreach (var message in messages)
@@ -984,7 +1009,6 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"UpdateTreeView error: {ex.Message}");
         }
     }
 
@@ -1361,5 +1385,52 @@ public partial class MainWindow : Window
             // ListView seçimlerini temizle
             fieldsListView.SelectedItems.Clear();
         }
+    }
+
+    /// <summary>
+    /// Bellek temizleme işlemini gerçekleştirir
+    /// </summary>
+    private void CleanupTimer_Tick(object sender, EventArgs e)
+    {
+        try
+        {
+            var now = DateTime.Now;
+
+            // Eski mesaj renklerini temizle
+            foreach (var key in _messageColors.Keys)
+            {
+                if (_messageColors.Count > MAX_CACHED_COLORS)
+                {
+                    _messageColors.TryRemove(key, out _);
+                }
+            }
+
+            // Message queue'yu temizle
+            while (_messageQueue.Count > MAX_MESSAGE_QUEUE_SIZE)
+            {
+                _messageQueue.TryDequeue(out _);
+            }
+
+            // Eski update bilgilerini temizle
+            var outdatedKeys = _messageUpdateInfo.Where(x =>
+                (now - x.Value.LastUpdate).TotalSeconds > 60).Select(x => x.Key).ToList();
+
+            foreach (var key in outdatedKeys)
+            {
+                _messageUpdateInfo.TryRemove(key, out _);
+            }
+        }
+        catch
+        {
+            // Temizleme hatası kritik değil, sessizce devam et
+        }
+    }
+
+    /// <summary>
+    /// Mesaj renk önbelleğini yönetir
+    /// </summary>
+    private Color GetMessageColor(uint messageKey, double rate)
+    {
+        return _messageColors.GetOrAdd(messageKey, _ => GenerateMessageColor(rate));
     }
 } // MainWindow class ends here

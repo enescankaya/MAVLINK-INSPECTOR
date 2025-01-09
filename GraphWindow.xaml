@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
-        Title="Message Graph" Height="600" Width="1000"
+        Title="Message Graph" Height="600" Width="1070"
         Background="#1E1E1E"
         RenderOptions.BitmapScalingMode="LowQuality"
         RenderOptions.EdgeMode="Aliased"
@@ -11,7 +11,7 @@
         UseLayoutRounding="True"
         SnapsToDevicePixels="True"
         CacheMode="BitmapCache">
-    <Grid Margin="10">
+    <Grid Margin="10" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -19,9 +19,9 @@
         </Grid.RowDefinitions>
 
         <!-- Kontrol Paneli -->
-        <DockPanel Grid.Row="0" LastChildFill="True" Margin="0,0,0,10">
+        <DockPanel Grid.Row="0" LastChildFill="True" Margin="0,0,0,10" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
             <!-- Sol taraftaki ayarlar -->
-            <GroupBox Header="Display Settings" DockPanel.Dock="Left" 
+            <GroupBox Header="Display Settings" 
                       Padding="10" Margin="0,0,10,0"
                       Foreground="White" BorderBrush="#3F3F46" BorderThickness="0.1">
                 <StackPanel>
@@ -96,67 +96,68 @@
                       Padding="10" Margin="0,0,0,0"
                       Foreground="White" BorderBrush="#3F3F46" BorderThickness="0.1">
                 <DataGrid x:Name="StatisticsGrid"
-                         AutoGenerateColumns="False"
-                         Background="#252526"
-                         BorderThickness="0"
-                         GridLinesVisibility="Horizontal"
-                         HeadersVisibility="Column"
-                         IsReadOnly="True"
-                         ItemsSource="{Binding}"
-                         HorizontalScrollBarVisibility="Auto"
-                         VerticalScrollBarVisibility="Auto"
-                         MaxHeight="200"
-                         MinHeight="100"
-                         ScrollViewer.CanContentScroll="True"
-                         VirtualizingStackPanel.IsVirtualizing="True"
-                         VirtualizingStackPanel.VirtualizationMode="Recycling">
-                    <DataGrid.Columns>
-                        <DataGridTemplateColumn Header="Signal" Width="200">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <StackPanel Orientation="Horizontal" Margin="5,0">
-                                        <Rectangle Width="16" Height="16" Margin="0,0,5,0"
-                                                 Fill="{Binding Color}"/>
-                                        <TextBlock Text="{Binding Title}" 
-                                                 Foreground="White"
-                                                 VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="Current" Width="80" 
-                                          Binding="{Binding Value, StringFormat=F7, UpdateSourceTrigger=PropertyChanged}"/>
-                        <DataGridTextColumn Header="Min" Width="80"
-                                          Binding="{Binding Statistics.Min, StringFormat=F7, UpdateSourceTrigger=PropertyChanged}"/>
-                        <DataGridTextColumn Header="Max" Width="80"
-                                          Binding="{Binding Statistics.Max, StringFormat=F7, UpdateSourceTrigger=PropertyChanged}"/>
-                        <DataGridTextColumn Header="Mean" Width="80"
-                                          Binding="{Binding Statistics.Mean, StringFormat=F7, UpdateSourceTrigger=PropertyChanged}"/>
-                    </DataGrid.Columns>
+                                 AutoGenerateColumns="False"
+                                 Background="#252526"
+                                 BorderThickness="0"
+                                 GridLinesVisibility="Horizontal"
+                                 HeadersVisibility="Column"
+                                 IsReadOnly="True"
+                                 ItemsSource="{Binding}"
+                                 RowHeaderWidth="0">
                     <DataGrid.Resources>
                         <Style TargetType="DataGridColumnHeader">
-                            <Setter Property="Background" Value="#2D2D30"/>
+                            <Setter Property="Background" Value="#333337"/>
                             <Setter Property="Foreground" Value="White"/>
-                            <Setter Property="Padding" Value="10,5"/>
-                            <Setter Property="FontWeight" Value="Bold"/>
+                            <Setter Property="Padding" Value="10,8"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
                             <Setter Property="BorderThickness" Value="0,0,1,1"/>
                             <Setter Property="BorderBrush" Value="#3F3F46"/>
                         </Style>
                         <Style TargetType="DataGridCell">
-                            <Setter Property="Background" Value="#252526"/>
+                            <Setter Property="Background" Value="Transparent"/>
                             <Setter Property="Foreground" Value="White"/>
-                            <Setter Property="BorderThickness" Value="0,0,1,1"/>
-                            <Setter Property="BorderBrush" Value="#3F3F46"/>
-                            <Setter Property="Padding" Value="10,5"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="Padding" Value="10,6"/>
                         </Style>
                         <Style TargetType="DataGridRow">
+                            <Setter Property="Background" Value="Transparent"/>
                             <Style.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#3E3E42"/>
+                                    <Setter Property="Background" Value="#333337"/>
                                 </Trigger>
                             </Style.Triggers>
                         </Style>
                     </DataGrid.Resources>
+
+                    <DataGrid.Columns>
+                        <DataGridTemplateColumn Header="Signal" Width="2.5*">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <DockPanel Margin="4,0">
+                                        <Rectangle Width="14" 
+                                                         Height="14" 
+                                                         Margin="0,0,8,0"
+                                                         Fill="{Binding Color}"/>
+                                        <TextBlock Text="{Binding Title}" 
+                                                         Foreground="White"
+                                                         VerticalAlignment="Center"/>
+                                    </DockPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="Current" 
+                                                  Width="*" 
+                                                  Binding="{Binding Value, StringFormat=F7}"/>
+                        <DataGridTextColumn Header="Min" 
+                                                  Width="*"
+                                                  Binding="{Binding Statistics.Min, StringFormat=F7}"/>
+                        <DataGridTextColumn Header="Max" 
+                                                  Width="*"
+                                                  Binding="{Binding Statistics.Max, StringFormat=F7}"/>
+                        <DataGridTextColumn Header="Mean" 
+                                                  Width="*"
+                                                  Binding="{Binding Statistics.Mean, StringFormat=F7}"/>
+                    </DataGrid.Columns>
                 </DataGrid>
             </GroupBox>
         </DockPanel>
@@ -172,7 +173,8 @@
                            UseLayoutRounding="True"
                            SnapsToDevicePixels="True"
                            RenderOptions.BitmapScalingMode="HighQuality"
-                           AnimationsSpeed="0">
+                           AnimationsSpeed="0"
+                           HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
             <lvc:CartesianChart.DataTooltip>
                 <lvc:DefaultTooltip Background="#333333" 
                                    Foreground="White"
@@ -200,7 +202,7 @@
         </lvc:CartesianChart>
 
         <!-- Durum Çubuğu -->
-        <StatusBar Grid.Row="2" Background="#252526">
+        <StatusBar Grid.Row="2" Background="#252526" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
             <StatusBarItem>
                 <TextBlock x:Name="StatusText" Foreground="White"
                          Text="Ready"/>

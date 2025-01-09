@@ -2,6 +2,13 @@
 
 namespace MavlinkInspector;
 
+public enum PacketInspectorConstants
+{
+    MaxHistoryTimeMs = 3000,
+    DefaultRateHistory = 200,
+    MaxQueueSize = 10000
+}
+
 /// <summary>
 /// Paket denetleyici sınıfı.
 /// </summary>
@@ -11,10 +18,20 @@ public class PacketInspector<T>
     private readonly ConcurrentDictionary<uint, ConcurrentDictionary<uint, List<irate>>> _rate = new();
     private readonly ConcurrentDictionary<uint, ConcurrentDictionary<uint, List<irate>>> _bps = new();
 
-    private const int MAX_HISTORY_TIME_MS = 3000;
-    public int RateHistory { get; set; } = 200;
-    private readonly object _lock = new object();
-    public event EventHandler NewSysidCompid;
+    private int _rateHistory = (int)PacketInspectorConstants.DefaultRateHistory;
+    public int RateHistory
+    {
+        get => _rateHistory;
+        set => _rateHistory = Math.Max(1, Math.Min(value, (int)PacketInspectorConstants.MaxQueueSize));
+    }
+
+    private readonly object _lock = new();
+    private EventHandler? _newSysidCompid;
+    public event EventHandler NewSysidCompid
+    {
+        add => _newSysidCompid += value;
+        remove => _newSysidCompid -= value;
+    }
 
     private struct irate
     {
@@ -76,15 +93,28 @@ public class PacketInspector<T>
             }
         }
 
-        /// <summary>
-        /// Tüm verileri temizler.
-        /// </summary>
         public void Clear()
         {
             lock (_lock)
             {
                 _start = 0;
                 _count = 0;
+            }
+        }
+
+        public void RemoveItemsOlderThan(DateTime cutoff)
+        {
+            lock (_lock)
+            {
+                while (_count > 0)
+                {
+                    var item = _buffer[_start];
+                    if (item is irate rate && rate.dateTime >= cutoff)
+                        break;
+
+                    _start = (_start + 1) % _buffer.Length;
+                    _count--;
+                }
             }
         }
     }
@@ -118,19 +148,10 @@ public class PacketInspector<T>
     {
         var id = GetID(sysid, compid);
         var key = (id, msgid);
-        var now = DateTime.UtcNow;
-        var cutoff = now.AddMilliseconds(-MAX_HISTORY_TIME_MS);
+        var cutoff = DateTime.UtcNow.AddMilliseconds(-(int)PacketInspectorConstants.MaxHistoryTimeMs);
 
         var buffer = _rateBuffers.GetOrAdd(key, _ => new CircularBuffer<irate>(RateHistory));
-        var samples = buffer.GetItems(cutoff).Cast<irate>().ToList();
-
-        if (samples.Count < 2) return 0;
-
-        var timeSpan = (samples.Last().dateTime - samples.First().dateTime).TotalSeconds;
-        if (timeSpan <= 0) return 0;
-
-        var messageCount = samples.Sum(s => s.value);
-        return messageCount / timeSpan;
+        return CalculateRate(buffer, cutoff);
     }
 
     /// <summary>
@@ -144,19 +165,10 @@ public class PacketInspector<T>
     {
         var id = GetID(sysid, compid);
         var key = (id, msgid);
-        var now = DateTime.UtcNow;
-        var cutoff = now.AddMilliseconds(-MAX_HISTORY_TIME_MS);
+        var cutoff = DateTime.UtcNow.AddMilliseconds(-(int)PacketInspectorConstants.MaxHistoryTimeMs);
 
         var buffer = _bpsBuffers.GetOrAdd(key, _ => new CircularBuffer<irate>(RateHistory));
-        var samples = buffer.GetItems(cutoff).Cast<irate>().ToList();
-
-        if (samples.Count < 2) return 0;
-
-        var timeSpan = (samples.Last().dateTime - samples.First().dateTime).TotalSeconds;
-        if (timeSpan <= 0) return 0;
-
-        var totalBits = samples.Sum(s => s.value) * 8.0;
-        return totalBits / timeSpan;
+        return CalculateRate(buffer, cutoff) * 8.0; // Convert to bits
     }
 
     /// <summary>
@@ -182,7 +194,7 @@ public class PacketInspector<T>
         var bpsBuffer = _bpsBuffers.GetOrAdd(key, _ => new CircularBuffer<irate>(RateHistory));
         bpsBuffer.Add(new irate(now, totalSize));
 
-        NewSysidCompid?.Invoke(this, EventArgs.Empty);
+        _newSysidCompid?.Invoke(this, EventArgs.Empty);
     }
 
     private IEnumerable<T1> toArray<T1>(IEnumerable<T1> input)
@@ -214,7 +226,7 @@ public class PacketInspector<T>
         foreach (var buffer in _bpsBuffers.Values)
             buffer.Clear();
 
-        NewSysidCompid?.Invoke(this, EventArgs.Empty);
+        _newSysidCompid?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
@@ -238,7 +250,7 @@ public class PacketInspector<T>
             if (_bps.TryGetValue(id, out var bps))
                 bps.Clear();
         }
-        NewSysidCompid?.Invoke(this, EventArgs.Empty);
+        _newSysidCompid?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
@@ -283,5 +295,39 @@ public class PacketInspector<T>
 
         return _history.TryGetValue(id, out var messages) &&
                messages.TryGetValue(msgid, out message);
+    }
+
+    private double CalculateRate(CircularBuffer<irate> buffer, DateTime cutoff)
+    {
+        var samples = buffer.GetItems(cutoff).Cast<irate>().ToList();
+        if (samples.Count < 2) return 0;
+
+        var timeSpan = (samples.Last().dateTime - samples.First().dateTime).TotalSeconds;
+        if (timeSpan <= 0) return 0;
+
+        var total = samples.Sum(s => s.value);
+        return total / timeSpan;
+    }
+
+    // Cleanup method to remove old data
+    public void CleanupOldData()
+    {
+        var cutoff = DateTime.UtcNow.AddMilliseconds(-(int)PacketInspectorConstants.MaxHistoryTimeMs);
+
+        foreach (var key in _rateBuffers.Keys)
+        {
+            if (_rateBuffers.TryGetValue(key, out var buffer))
+            {
+                buffer.RemoveItemsOlderThan(cutoff);
+            }
+        }
+
+        foreach (var key in _bpsBuffers.Keys)
+        {
+            if (_bpsBuffers.TryGetValue(key, out var buffer))
+            {
+                buffer.RemoveItemsOlderThan(cutoff);
+            }
+        }
     }
 }
