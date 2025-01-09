@@ -3,6 +3,8 @@ using System.Text;
 using System.Windows.Controls;
 using System.Windows;
 using System.Windows.Media;
+using System.Diagnostics;
+using System.Windows.Interop;
 
 namespace MavlinkInspector;
 
@@ -14,6 +16,10 @@ public static class Extensions
     private static readonly ConcurrentDictionary<string, WeakReference<TreeViewItem>> _itemCache =
         new ConcurrentDictionary<string, WeakReference<TreeViewItem>>();
 
+    public static IntPtr GetHandle(this Window window)
+    {
+        return new WindowInteropHelper(window).Handle;
+    }
     /// <summary>
     /// Belirtilen başlık ve etiketle bir TreeViewItem bulur veya oluşturur.
     /// </summary>

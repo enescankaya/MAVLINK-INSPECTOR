@@ -3,7 +3,14 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
         Title="Message Graph" Height="600" Width="1000"
-        Background="#1E1E1E">
+        Background="#1E1E1E"
+        RenderOptions.BitmapScalingMode="LowQuality"
+        RenderOptions.EdgeMode="Aliased"
+        RenderOptions.CacheInvalidationThresholdMinimum="0.5"
+        RenderOptions.CacheInvalidationThresholdMaximum="2.0"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        CacheMode="BitmapCache">
     <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -12,68 +19,160 @@
         </Grid.RowDefinitions>
 
         <!-- Kontrol Paneli -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
-            <GroupBox Header="Display Settings" Padding="10" Margin="0,0,10,0"
-                      Foreground="White" BorderBrush="#3F3F46" BorderThickness ="0.1">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Sample Count:" Foreground="White" 
-                             VerticalAlignment="Center" Margin="0,0,5,0"/>
-                    <ComboBox x:Name="SampleCountCombo" Width="80" Margin="0,0,10,0"
-                            SelectedIndex="0">
-                        <ComboBoxItem Content="50"/>
-                        <ComboBoxItem Content="100"/>
-                        <ComboBoxItem Content="200"/>
-                        <ComboBoxItem Content="500"/>
-                    </ComboBox>
+        <DockPanel Grid.Row="0" LastChildFill="True" Margin="0,0,0,10">
+            <!-- Sol taraftaki ayarlar -->
+            <GroupBox Header="Display Settings" DockPanel.Dock="Left" 
+                      Padding="10" Margin="0,0,10,0"
+                      Foreground="White" BorderBrush="#3F3F46" BorderThickness="0.1">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Sample Count:" Foreground="White" 
+                                 VerticalAlignment="Center" Margin="0,0,5,0"/>
+                        <ComboBox x:Name="SampleCountCombo" Width="80" Margin="0,0,10,0"
+                                SelectedIndex="0">
+                            <ComboBoxItem Content="50"/>
+                            <ComboBoxItem Content="100"/>
+                            <ComboBoxItem Content="200"/>
+                            <ComboBoxItem Content="500"/>
+                        </ComboBox>
 
-                    <TextBlock Text="Update Rate (ms):" Foreground="White" 
-                             VerticalAlignment="Center" Margin="0,0,5,0"/>
-                    <ComboBox x:Name="UpdateRateCombo" Width="80" Margin="0,0,10,0"
-                            SelectedIndex="1">
-                        <ComboBoxItem Content="50"/>
-                        <ComboBoxItem Content="100"/>
-                        <ComboBoxItem Content="200"/>
-                        <ComboBoxItem Content="500"/>
-                    </ComboBox>
+                        <TextBlock Text="Update Rate (ms):" Foreground="White" 
+                                 VerticalAlignment="Center" Margin="0,0,5,0"/>
+                        <ComboBox x:Name="UpdateRateCombo" Width="80" Margin="0,0,10,0"
+                                SelectedIndex="0">
+                            <ComboBoxItem Content="50"/>
+                            <ComboBoxItem Content="100"/>
+                            <ComboBoxItem Content="200"/>
+                            <ComboBoxItem Content="500"/>
+                        </ComboBox>
 
-                    <CheckBox x:Name="AutoScaleCheckbox" Content="Auto Scale" 
-                            IsChecked="True" Foreground="White" 
-                            VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <CheckBox x:Name="AutoScaleCheckbox" Content="Auto Scale" 
+                                IsChecked="True" Foreground="White" 
+                                VerticalAlignment="Center" Margin="0,0,10,0"/>
 
-                    <Button x:Name="ClearButton" Content="Clear Data" 
-                            Width="80" Margin="0,0,10,0" Click="ClearButton_Click"/>
+                        <Button x:Name="ClearButton" Content="Clear Data" 
+                                Width="80" Margin="0,0,10,0" Click="ClearButton_Click"/>
+                    </StackPanel>
+
+                    <!-- Gelişmiş Filtreleme Kontrolü -->
+                    <GroupBox Header="Filter Settings" Margin="0,10,0,0" 
+                             BorderBrush="#3F3F46" BorderThickness="0.1">
+                        <StackPanel>
+                            <TextBlock Text="Smooth signal with previous values:" 
+                                     Foreground="White" 
+                                     Margin="0,5"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Text="Raw" Foreground="White" 
+                                         Grid.Column="0"/>
+                                <Slider x:Name="FilterSlider" 
+                                       Grid.Column="1"
+                                       Minimum="0" 
+                                       Maximum="100" 
+                                       Value="70" 
+                                       TickFrequency="10"
+                                       TickPlacement="BottomRight"
+                                       Margin="10,0"/>
+                                <TextBlock Text="Smooth" Foreground="White" 
+                                         Grid.Column="2"/>
+                            </Grid>
+                            <TextBlock x:Name="FilterValueText" 
+                                     Text="Current Filter: 70% previous, 30% new" 
+                                     Foreground="#A0A0A0"
+                                     FontSize="11"
+                                     Margin="0,5"/>
+                        </StackPanel>
+                    </GroupBox>
                 </StackPanel>
             </GroupBox>
 
-            <GroupBox Header="Legend" Padding="10" Margin="0,0,10,0"
+            <!-- Sağ taraftaki data grid -->
+            <GroupBox Header="Signal Statistics" DockPanel.Dock="Right"
+                      Padding="10" Margin="0,0,0,0"
                       Foreground="White" BorderBrush="#3F3F46" BorderThickness="0.1">
-                <ItemsControl x:Name="LegendItemsControl">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <WrapPanel/>
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,10,0">
-                                <Rectangle Width="16" Height="16" Margin="0,0,5,0"
-                                         Fill="{Binding Color}"/>
-                                <TextBlock Text="{Binding Title}" Foreground="White"
-                                         VerticalAlignment="Center"/>
-                                <TextBlock Text="{Binding Value, StringFormat=': {0:F2}'}" 
-                                         Foreground="White" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                <DataGrid x:Name="StatisticsGrid"
+                         AutoGenerateColumns="False"
+                         Background="#252526"
+                         BorderThickness="0"
+                         GridLinesVisibility="Horizontal"
+                         HeadersVisibility="Column"
+                         IsReadOnly="True"
+                         ItemsSource="{Binding}"
+                         HorizontalScrollBarVisibility="Auto"
+                         VerticalScrollBarVisibility="Auto"
+                         MaxHeight="200"
+                         MinHeight="100"
+                         ScrollViewer.CanContentScroll="True"
+                         VirtualizingStackPanel.IsVirtualizing="True"
+                         VirtualizingStackPanel.VirtualizationMode="Recycling">
+                    <DataGrid.Columns>
+                        <DataGridTemplateColumn Header="Signal" Width="200">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" Margin="5,0">
+                                        <Rectangle Width="16" Height="16" Margin="0,0,5,0"
+                                                 Fill="{Binding Color}"/>
+                                        <TextBlock Text="{Binding Title}" 
+                                                 Foreground="White"
+                                                 VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="Current" Width="80" 
+                                          Binding="{Binding Value, StringFormat=F7, UpdateSourceTrigger=PropertyChanged}"/>
+                        <DataGridTextColumn Header="Min" Width="80"
+                                          Binding="{Binding Statistics.Min, StringFormat=F7, UpdateSourceTrigger=PropertyChanged}"/>
+                        <DataGridTextColumn Header="Max" Width="80"
+                                          Binding="{Binding Statistics.Max, StringFormat=F7, UpdateSourceTrigger=PropertyChanged}"/>
+                        <DataGridTextColumn Header="Mean" Width="80"
+                                          Binding="{Binding Statistics.Mean, StringFormat=F7, UpdateSourceTrigger=PropertyChanged}"/>
+                    </DataGrid.Columns>
+                    <DataGrid.Resources>
+                        <Style TargetType="DataGridColumnHeader">
+                            <Setter Property="Background" Value="#2D2D30"/>
+                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="Padding" Value="10,5"/>
+                            <Setter Property="FontWeight" Value="Bold"/>
+                            <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                            <Setter Property="BorderBrush" Value="#3F3F46"/>
+                        </Style>
+                        <Style TargetType="DataGridCell">
+                            <Setter Property="Background" Value="#252526"/>
+                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                            <Setter Property="BorderBrush" Value="#3F3F46"/>
+                            <Setter Property="Padding" Value="10,5"/>
+                        </Style>
+                        <Style TargetType="DataGridRow">
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#3E3E42"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.Resources>
+                </DataGrid>
             </GroupBox>
-        </StackPanel>
+        </DockPanel>
 
         <!-- Grafik -->
         <lvc:CartesianChart Grid.Row="1" x:Name="Chart" 
                            Background="#252526"
                            DisableAnimations="True"
-                           Zoom="X">
+                           Hoverable="False"
+                           IsHitTestVisible="True"
+                           IsManipulationEnabled="True"
+                           Zoom="X"
+                           UseLayoutRounding="True"
+                           SnapsToDevicePixels="True"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           AnimationsSpeed="0">
             <lvc:CartesianChart.DataTooltip>
                 <lvc:DefaultTooltip Background="#333333" 
                                    Foreground="White"
