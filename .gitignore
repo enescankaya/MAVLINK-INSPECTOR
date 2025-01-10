@@ -496,3 +496,8 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+bin
+obj
+MavlinkInspector.csproj
+MavlinkInspector.csproj.user
+MavlinkInspector.sln
