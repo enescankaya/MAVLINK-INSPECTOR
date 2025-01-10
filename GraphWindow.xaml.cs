@@ -48,6 +48,10 @@ namespace MavlinkInspector
         private const int MAX_BATCH_SIZE = 20;
         private const int RENDER_TIMEOUT_MS = 100;
         private const int RESIZE_DELAY = 100;
+        private const double MIN_ZOOM_X = 10; // Minimum 10 sample gösterilecek
+        private const double MAX_ZOOM_X = 1000; // Maximum 1000 sample gösterilecek
+        private const double MIN_ZOOM_Y = 0.1; // Minimum Y zoom seviyesi
+        private const double MAX_ZOOM_Y = 10; // Maximum Y zoom seviyesi
 
         // Thread-safe collections
         private readonly ConcurrentDictionary<string, FieldStatistics> _fieldStats = new();
@@ -107,6 +111,9 @@ namespace MavlinkInspector
         private double _originalMaxX;
         private double _originalMinY;
         private double _originalMaxY;
+
+        // Yeni özellik ekle
+        private bool _isPaused;
 
         public GraphWindow(PacketInspector<MAVLink.MAVLinkMessage> inspector, IEnumerable<(byte sysid, byte compid, uint msgid, string field)> fields)
         {
@@ -205,8 +212,16 @@ namespace MavlinkInspector
                 .ToList()
                 .FindIndex(item => item.Content.ToString() == "50");
 
+            // Graf dondurma bilgisini göster
+            PauseInfoText.Text = "Wheel Click: Pause/Resume Graph";
+            PauseInfoText.Opacity = 0.6;
+
             SaveOriginalAxisLimits();
             InitializeChartInteraction();
+
+            // Mouse wheel event handler'ı Preview event'ine bağla
+            //Chart.PreviewMouseWheel += Chart_PreviewMouseWheel;
+            Chart.MouseDown += Chart_MouseDown;
         }
 
         private void SaveOriginalAxisLimits()
@@ -223,37 +238,6 @@ namespace MavlinkInspector
             // Chart.PreviewMouseLeftButtonDown += Chart_PreviewMouseLeftButtonDown;
             // Chart.PreviewMouseMove += Chart_PreviewMouseMove;
             // Chart.PreviewMouseLeftButtonUp += Chart_PreviewMouseLeftButtonUp;
-        }
-
-        private void Chart_MouseWheel(object sender, MouseWheelEventArgs e)
-        {
-            try
-            {
-                if (Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl))
-                {
-                    // CTRL + Wheel = Dikey zoom
-                    Chart.Zoom = ZoomingOptions.Y;
-                }
-                else if (e.MiddleButton == MouseButtonState.Pressed)
-                {
-                    // Wheel Click = Reset view
-                    ResetChartView();
-                    e.Handled = true;
-                }
-                else
-                {
-                    // Normal Wheel = Yatay zoom
-                    Chart.Zoom = ZoomingOptions.X;
-                }
-
-                // Zoom sonrası görünümü güncelle
-                Chart.UpdateLayout();
-            }
-            catch (Exception ex)
-            {
-                // Hata durumunda varsayılan davranışa dön
-                Chart.Zoom = ZoomingOptions.None;
-            }
         }
 
         private void Chart_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
@@ -506,7 +490,8 @@ namespace MavlinkInspector
 
         private async void UpdateTimer_Tick(object? sender, EventArgs e)
         {
-            if (_isResizing || _isDragging || _isDisposed) return;
+            // Exit immediately if paused or other conditions are met
+            if (_isResizing || _isDragging || _isDisposed || _isPaused) return;
 
             try
             {
@@ -848,7 +833,10 @@ namespace MavlinkInspector
         {
             try
             {
+                // Değeri 9 decimal'e yuvarla
+                value = Math.Round(value, 9, MidpointRounding.AwayFromZero);
                 var filteredValue = ApplyFilter(key, value);
+                filteredValue = Math.Round(filteredValue, 9, MidpointRounding.AwayFromZero);
 
                 if (_valuesByField.TryGetValue(key, out var values))
                 {
@@ -857,15 +845,20 @@ namespace MavlinkInspector
                     {
                         values.RemoveAt(0);
                     }
+
                     values.Add(filteredValue);
+
+                    // Zoom limitlerini kontrol et ve ayarla
+                    if (Chart.AxisX[0].MaxValue - Chart.AxisX[0].MinValue > MAX_ZOOM_X)
+                    {
+                        Chart.AxisX[0].MaxValue = Chart.AxisX[0].MinValue + MAX_ZOOM_X;
+                    }
 
                     UpdateStatistics(key, filteredValue);
                     UpdateLegendItem(key, filteredValue);
                 }
             }
-            catch (Exception ex)
-            {
-            }
+            catch { }
         }
 
         private int GetMaxSamples()
@@ -886,13 +879,13 @@ namespace MavlinkInspector
             if (index >= 0 && index < _legendItems.Count)
             {
                 var legendItem = _legendItems[index];
-                legendItem.Value = value;
+                legendItem.Value = Math.Round(value, 9, MidpointRounding.AwayFromZero);
 
                 if (_fieldStats.TryGetValue(key, out var stats))
                 {
-                    legendItem.Statistics.Min = stats.Min;
-                    legendItem.Statistics.Max = stats.Max;
-                    legendItem.Statistics.Mean = stats.Mean;
+                    legendItem.Statistics.Min = Math.Round(stats.Min, 9, MidpointRounding.AwayFromZero);
+                    legendItem.Statistics.Max = Math.Round(stats.Max, 9, MidpointRounding.AwayFromZero);
+                    legendItem.Statistics.Mean = Math.Round(stats.Mean, 9, MidpointRounding.AwayFromZero);
                 }
             }
         }
@@ -925,6 +918,18 @@ namespace MavlinkInspector
         private Canvas GetChartCanvas()
         {
             return Chart.Parent as Canvas;
+        }
+
+        // Yeni event handler ekle
+        private void Chart_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.MiddleButton == MouseButtonState.Pressed)
+            {
+                _isPaused = !_isPaused;
+                PauseInfoText.Text = _isPaused ? "Graph Paused - Click Middle Mouse Button to Resume" : "Click Middle Mouse Button to Pause";
+                PauseInfoText.Opacity = _isPaused ? 1.0 : 0.6;
+                e.Handled = true;
+            }
         }
     }
 
