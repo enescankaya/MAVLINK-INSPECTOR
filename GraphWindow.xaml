@@ -163,43 +163,66 @@
         </DockPanel>
 
         <!-- Grafik -->
-        <lvc:CartesianChart Grid.Row="1" x:Name="Chart" 
-                           Background="#252526"
-                           DisableAnimations="True"
-                           Hoverable="False"
-                           IsHitTestVisible="True"
-                           IsManipulationEnabled="True"
-                           Zoom="X"
-                           UseLayoutRounding="True"
-                           SnapsToDevicePixels="True"
-                           RenderOptions.BitmapScalingMode="HighQuality"
-                           AnimationsSpeed="0"
-                           HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-            <lvc:CartesianChart.DataTooltip>
-                <lvc:DefaultTooltip Background="#333333" 
-                                   Foreground="White"
-                                   ShowTitle="True"
-                                   ShowSeries="True"
-                                   SelectionMode="SharedXValues"/>
-            </lvc:CartesianChart.DataTooltip>
-            <lvc:CartesianChart.AxisX>
-                <lvc:Axis Title="Samples" 
-                         Foreground="White"
-                         MinValue="0">
-                    <lvc:Axis.Separator>
-                        <lvc:Separator Step="10" Stroke="#3F3F46"/>
-                    </lvc:Axis.Separator>
-                </lvc:Axis>
-            </lvc:CartesianChart.AxisX>
-            <lvc:CartesianChart.AxisY>
-                <lvc:Axis Title="Value"
-                         Foreground="White">
-                    <lvc:Axis.Separator>
-                        <lvc:Separator Stroke="#3F3F46"/>
-                    </lvc:Axis.Separator>
-                </lvc:Axis>
-            </lvc:CartesianChart.AxisY>
-        </lvc:CartesianChart>
+        <Canvas Grid.Row="1" ClipToBounds="True">
+            <lvc:CartesianChart x:Name="Chart" 
+                               Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Canvas}}"
+                               Height="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Canvas}}"
+                               Background="#252526"
+                               DisableAnimations="True"
+                               Hoverable="False"
+                               IsHitTestVisible="True"
+                               IsManipulationEnabled="True"
+                               Zoom="X"
+                               Pan="X" 
+                               ScrollMode="X"
+                               MouseRightButtonDown="Chart_MouseRightButtonDown"
+                               MouseWheel="Chart_MouseWheel"
+                               UseLayoutRounding="True"
+                               SnapsToDevicePixels="True"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               AnimationsSpeed="0">
+                <lvc:CartesianChart.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Reset View" Click="ResetView_Click"/>
+                        <Separator/>
+                        <MenuItem Header="Export">
+                            <MenuItem Header="Save as PNG" Click="SaveAsPng_Click"/>
+                            <MenuItem Header="Save as CSV" Click="SaveAsCsv_Click"/>
+                        </MenuItem>
+                        <Separator/>
+                        <MenuItem Header="Chart Options">
+                            <MenuItem Header="Toggle Grid Lines" IsCheckable="True" IsChecked="True" Click="ToggleGridLines_Click"/>
+                            <MenuItem Header="Toggle Point Markers" IsCheckable="True" Click="TogglePointMarkers_Click"/>
+                            <MenuItem Header="Toggle Smooth Lines" IsCheckable="True" IsChecked="True" Click="ToggleSmoothLines_Click"/>
+                        </MenuItem>
+                    </ContextMenu>
+                </lvc:CartesianChart.ContextMenu>
+                <lvc:CartesianChart.DataTooltip>
+                    <lvc:DefaultTooltip Background="#333333" 
+                                       Foreground="White"
+                                       ShowTitle="True"
+                                       ShowSeries="True"
+                                       SelectionMode="SharedXValues"/>
+                </lvc:CartesianChart.DataTooltip>
+                <lvc:CartesianChart.AxisX>
+                    <lvc:Axis Title="Samples" 
+                             Foreground="White"
+                             MinValue="0">
+                        <lvc:Axis.Separator>
+                            <lvc:Separator Step="10" Stroke="#3F3F46"/>
+                        </lvc:Axis.Separator>
+                    </lvc:Axis>
+                </lvc:CartesianChart.AxisX>
+                <lvc:CartesianChart.AxisY>
+                    <lvc:Axis Title="Value"
+                             Foreground="White">
+                        <lvc:Axis.Separator>
+                            <lvc:Separator Stroke="#3F3F46"/>
+                        </lvc:Axis.Separator>
+                    </lvc:Axis>
+                </lvc:CartesianChart.AxisY>
+            </lvc:CartesianChart>
+        </Canvas>
 
         <!-- Durum Çubuğu -->
         <StatusBar Grid.Row="2" Background="#252526" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">

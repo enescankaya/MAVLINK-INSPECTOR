@@ -9,6 +9,12 @@ using System.ComponentModel;
 using System.Collections.Concurrent; // ConcurrentDictionary için ekleyin
 using System.Windows.Interop; // HwndSource için
 using System.Threading.Channels; // Channel için
+using System.Windows.Input; // MouseWheelEventArgs için
+using System.Windows.Shapes; // Rectangle için
+using Microsoft.Win32; // SaveFileDialog için
+using System.IO; // File işlemleri için
+using System.Drawing.Imaging; // ImageFormat için
+using System.Windows.Media.Imaging; // RenderTargetBitmap için
 
 namespace MavlinkInspector
 {
@@ -96,6 +102,11 @@ namespace MavlinkInspector
         };
 
         private readonly DispatcherTimer _resizeTimer;
+
+        private double _originalMinX;
+        private double _originalMaxX;
+        private double _originalMinY;
+        private double _originalMaxY;
 
         public GraphWindow(PacketInspector<MAVLink.MAVLinkMessage> inspector, IEnumerable<(byte sysid, byte compid, uint msgid, string field)> fields)
         {
@@ -193,6 +204,200 @@ namespace MavlinkInspector
                 .Cast<ComboBoxItem>()
                 .ToList()
                 .FindIndex(item => item.Content.ToString() == "50");
+
+            SaveOriginalAxisLimits();
+            InitializeChartInteraction();
+        }
+
+        private void SaveOriginalAxisLimits()
+        {
+            _originalMinX = Chart.AxisX[0].MinValue;
+            _originalMaxX = Chart.AxisX[0].MaxValue;
+            _originalMinY = Chart.AxisY[0].MinValue;
+            _originalMaxY = Chart.AxisY[0].MaxValue;
+        }
+
+        private void InitializeChartInteraction()
+        {
+            // Bu metodun çağrılarını kaldır çünkü artık bu özellikleri kullanmıyoruz
+            // Chart.PreviewMouseLeftButtonDown += Chart_PreviewMouseLeftButtonDown;
+            // Chart.PreviewMouseMove += Chart_PreviewMouseMove;
+            // Chart.PreviewMouseLeftButtonUp += Chart_PreviewMouseLeftButtonUp;
+        }
+
+        private void Chart_MouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            try
+            {
+                if (Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl))
+                {
+                    // CTRL + Wheel = Dikey zoom
+                    Chart.Zoom = ZoomingOptions.Y;
+                }
+                else if (e.MiddleButton == MouseButtonState.Pressed)
+                {
+                    // Wheel Click = Reset view
+                    ResetChartView();
+                    e.Handled = true;
+                }
+                else
+                {
+                    // Normal Wheel = Yatay zoom
+                    Chart.Zoom = ZoomingOptions.X;
+                }
+
+                // Zoom sonrası görünümü güncelle
+                Chart.UpdateLayout();
+            }
+            catch (Exception ex)
+            {
+                // Hata durumunda varsayılan davranışa dön
+                Chart.Zoom = ZoomingOptions.None;
+            }
+        }
+
+        private void Chart_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            // Sağ tık menüsünün açılmasına izin ver
+            e.Handled = false;
+        }
+
+        private void ResetView_Click(object sender, RoutedEventArgs e)
+        {
+            ResetChartView();
+        }
+
+        private void ResetChartView()
+        {
+            Chart.AxisX[0].MinValue = _originalMinX;
+            Chart.AxisX[0].MaxValue = _originalMaxX;
+            Chart.AxisY[0].MinValue = _originalMinY;
+            Chart.AxisY[0].MaxValue = _originalMaxY;
+        }
+
+        private void SaveAsPng_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new SaveFileDialog
+            {
+                Filter = "PNG Image|*.png",
+                FileName = $"chart_{DateTime.Now:yyyyMMdd_HHmmss}.png"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                try
+                {
+                    // Tüm grafik penceresini kapsayacak şekilde boyutları al
+                    var parentCanvas = GetChartCanvas();
+                    if (parentCanvas == null) return;
+
+                    // Chart'ın tam boyutlarını al
+                    var chartWidth = Chart.ActualWidth;
+                    var chartHeight = Chart.ActualHeight;
+
+                    // Grafik için yeni bir RenderTargetBitmap oluştur
+                    var renderBitmap = new RenderTargetBitmap(
+                        (int)chartWidth,
+                        (int)chartHeight,
+                        96, 96, // DPI değerleri
+                        PixelFormats.Pbgra32);
+
+                    // Geçici olarak grafik görünümünü düzenle
+                    var transform = Chart.LayoutTransform;
+                    Chart.LayoutTransform = null;
+
+                    // Grafik boyutlarını kaydet
+                    var size = new Size(chartWidth, chartHeight);
+                    Chart.Measure(size);
+                    Chart.Arrange(new Rect(size));
+
+                    // Grafiği render et
+                    renderBitmap.Render(Chart);
+
+                    // Grafik görünümünü eski haline getir
+                    Chart.LayoutTransform = transform;
+
+                    // PNG encoder oluştur ve kaydet
+                    var encoder = new PngBitmapEncoder();
+                    encoder.Frames.Add(BitmapFrame.Create(renderBitmap));
+
+                    using (var stream = new FileStream(dialog.FileName, FileMode.Create))
+                    {
+                        encoder.Save(stream);
+                    }
+
+                    MessageBox.Show("Chart saved successfully!", "Success",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error saving chart: {ex.Message}", "Error",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
+        private void SaveAsCsv_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new SaveFileDialog
+            {
+                Filter = "CSV File|*.csv",
+                FileName = $"chart_data_{DateTime.Now:yyyyMMdd_HHmmss}.csv"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                using var writer = new StreamWriter(dialog.FileName);
+
+                // Başlık satırı
+                var headers = Chart.Series.Select(s => s.Title).ToList();
+                writer.WriteLine(string.Join(",", headers));
+
+                // Veri satırları
+                var maxPoints = Chart.Series.Max(s => s.Values.Count);
+                for (int i = 0; i < maxPoints; i++)
+                {
+                    var values = Chart.Series.Select(s => i < s.Values.Count ? s.Values[i].ToString() : "").ToList();
+                    writer.WriteLine(string.Join(",", values));
+                }
+
+                MessageBox.Show("Data exported successfully!", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+
+        private void ToggleGridLines_Click(object sender, RoutedEventArgs e)
+        {
+            var menuItem = (MenuItem)sender;
+            var showGrid = menuItem.IsChecked;
+
+            foreach (var axis in Chart.AxisX.Concat(Chart.AxisY))
+            {
+                axis.Separator.StrokeThickness = showGrid ? 1 : 0;
+            }
+        }
+
+        private void TogglePointMarkers_Click(object sender, RoutedEventArgs e)
+        {
+            var menuItem = (MenuItem)sender;
+            foreach (var series in Chart.Series)
+            {
+                if (series is LineSeries lineSeries)
+                {
+                    lineSeries.PointGeometry = menuItem.IsChecked ? DefaultGeometries.Circle : null;
+                }
+            }
+        }
+
+        private void ToggleSmoothLines_Click(object sender, RoutedEventArgs e)
+        {
+            var menuItem = (MenuItem)sender;
+            foreach (var series in Chart.Series)
+            {
+                if (series is LineSeries lineSeries)
+                {
+                    lineSeries.LineSmoothness = menuItem.IsChecked ? 1 : 0;
+                }
+            }
         }
 
         private void Window_SourceInitialized(object sender, EventArgs e)
@@ -715,6 +920,11 @@ namespace MavlinkInspector
             _valuesByField?.Clear();
             _fieldStats?.Clear();
             _legendItems?.Clear();
+        }
+
+        private Canvas GetChartCanvas()
+        {
+            return Chart.Parent as Canvas;
         }
     }
 
