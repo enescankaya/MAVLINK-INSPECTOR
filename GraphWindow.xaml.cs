@@ -115,6 +115,9 @@ namespace MavlinkInspector
         // Yeni özellik ekle
         private bool _isPaused;
 
+        // Add this static property at class level
+        public static Func<double, string> ValueFormatter { get; } = (value) => value.ToString("F9");
+
         public GraphWindow(PacketInspector<MAVLink.MAVLinkMessage> inspector, IEnumerable<(byte sysid, byte compid, uint msgid, string field)> fields)
         {
             InitializeComponent();
@@ -151,6 +154,9 @@ namespace MavlinkInspector
             _legendItems = new ObservableCollection<LegendItem>();
 
             Chart.Series = _seriesCollection;
+
+            // Add this after Chart.Series = _seriesCollection;
+            Chart.DataContext = this; // Enable binding to ValueFormatter
 
             // LegendItemsControl referansını kaldır ve doğrudan DataContext'i ayarla
             DataContext = _legendItems;
@@ -834,9 +840,9 @@ namespace MavlinkInspector
             try
             {
                 // Değeri 9 decimal'e yuvarla
-                value = Math.Round(value, 9, MidpointRounding.AwayFromZero);
+                value = Math.Round(value, 9);
                 var filteredValue = ApplyFilter(key, value);
-                filteredValue = Math.Round(filteredValue, 9, MidpointRounding.AwayFromZero);
+                filteredValue = Math.Round(filteredValue, 9);
 
                 if (_valuesByField.TryGetValue(key, out var values))
                 {
@@ -879,13 +885,13 @@ namespace MavlinkInspector
             if (index >= 0 && index < _legendItems.Count)
             {
                 var legendItem = _legendItems[index];
-                legendItem.Value = Math.Round(value, 9, MidpointRounding.AwayFromZero);
+                legendItem.Value = Math.Round(value, 9);
 
                 if (_fieldStats.TryGetValue(key, out var stats))
                 {
-                    legendItem.Statistics.Min = Math.Round(stats.Min, 9, MidpointRounding.AwayFromZero);
-                    legendItem.Statistics.Max = Math.Round(stats.Max, 9, MidpointRounding.AwayFromZero);
-                    legendItem.Statistics.Mean = Math.Round(stats.Mean, 9, MidpointRounding.AwayFromZero);
+                    legendItem.Statistics.Min = Math.Round(stats.Min, 9);
+                    legendItem.Statistics.Max = Math.Round(stats.Max, 9);
+                    legendItem.Statistics.Mean = Math.Round(stats.Mean, 9);
                 }
             }
         }
