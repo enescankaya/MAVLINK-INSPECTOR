@@ -220,8 +220,7 @@
                 </lvc:CartesianChart.AxisX>
                 <lvc:CartesianChart.AxisY>
                     <lvc:Axis Title="Value"
-                             Foreground="White"
->
+                         LabelFormatter="{Binding ValueFormatter}">
                         <lvc:Axis.Separator>
                             <lvc:Separator Stroke="#3F3F46"/>
                         </lvc:Axis.Separator>
