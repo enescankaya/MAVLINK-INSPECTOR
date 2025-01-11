@@ -3,14 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
         Title="Message Graph" Height="600" Width="1070"
-        Background="#1E1E1E"
-        RenderOptions.BitmapScalingMode="LowQuality"
-        RenderOptions.EdgeMode="Aliased"
-        RenderOptions.CacheInvalidationThresholdMinimum="0.5"
-        RenderOptions.CacheInvalidationThresholdMaximum="2.0"
-        UseLayoutRounding="True"
-        SnapsToDevicePixels="True"
-        CacheMode="BitmapCache">
+        Background="{StaticResource WindowBackground}">
     <Grid Margin="10" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -22,45 +15,47 @@
         <DockPanel Grid.Row="0" LastChildFill="True" Margin="0,0,0,10" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
             <!-- Sol taraftaki ayarlar -->
             <GroupBox Header="Display Settings" 
-                      Padding="10" Margin="0,0,10,0"
-                      Foreground="White" BorderBrush="#3F3F46" BorderThickness="0.1">
+                      Style="{StaticResource ModernGroupBox}">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="Sample Count:" Foreground="White" 
+                        <TextBlock Text="Sample Count:" Foreground="{StaticResource TextColor}" 
                                  VerticalAlignment="Center" Margin="0,0,5,0"/>
-                        <ComboBox x:Name="SampleCountCombo" Width="80" Margin="0,0,10,0"
+                        <ComboBox x:Name="SampleCountCombo" Width="100" Margin="0,0,10,0"
+                                Style="{StaticResource ModernComboBox}"
                                 SelectedIndex="0">
-                            <ComboBoxItem Content="50"/>
-                            <ComboBoxItem Content="100"/>
-                            <ComboBoxItem Content="200"/>
-                            <ComboBoxItem Content="500"/>
+                            <ComboBoxItem Style="{StaticResource ModernComboBoxItem}" Content="50"/>
+                            <ComboBoxItem Style="{StaticResource ModernComboBoxItem}" Content="100"/>
+                            <ComboBoxItem Style="{StaticResource ModernComboBoxItem}" Content="200"/>
+                            <ComboBoxItem Style="{StaticResource ModernComboBoxItem}" Content="500"/>
                         </ComboBox>
 
-                        <TextBlock Text="Update Rate (ms):" Foreground="White" 
+                        <TextBlock Text="Update Rate (ms):" Foreground="{StaticResource TextColor}" 
                                  VerticalAlignment="Center" Margin="0,0,5,0"/>
-                        <ComboBox x:Name="UpdateRateCombo" Width="80" Margin="0,0,10,0"
+                        <ComboBox x:Name="UpdateRateCombo" Width="100" Margin="0,0,10,0"
+                                Style="{StaticResource ModernComboBox}"
                                 SelectedIndex="0">
-                            <ComboBoxItem Content="10"/>
-                            <ComboBoxItem Content="50"/>
-                            <ComboBoxItem Content="100"/>
-                            <ComboBoxItem Content="200"/>
-                            <ComboBoxItem Content="500"/>
+                            <ComboBoxItem Style="{StaticResource ModernComboBoxItem}" Content="10"/>
+                            <ComboBoxItem Style="{StaticResource ModernComboBoxItem}" Content="50"/>
+                            <ComboBoxItem Style="{StaticResource ModernComboBoxItem}" Content="100"/>
+                            <ComboBoxItem Style="{StaticResource ModernComboBoxItem}" Content="200"/>
+                            <ComboBoxItem Style="{StaticResource ModernComboBoxItem}" Content="500"/>
                         </ComboBox>
 
                         <CheckBox x:Name="AutoScaleCheckbox" Content="Auto Scale" 
-                                IsChecked="True" Foreground="White" 
+                                Style="{StaticResource ModernCheckBox}"
                                 VerticalAlignment="Center" Margin="0,0,10,0"/>
 
                         <Button x:Name="ClearButton" Content="Clear Data" 
-                                Width="80" Margin="0,0,10,0" Click="ClearButton_Click"/>
+                                Style="{StaticResource ModernButton}"
+                                Width="100" Height="32" Margin="0,0,10,0" Click="ClearButton_Click"/>
                     </StackPanel>
 
                     <!-- Gelişmiş Filtreleme Kontrolü -->
                     <GroupBox Header="Filter Settings" Margin="0,10,0,0" 
-                             BorderBrush="#3F3F46" BorderThickness="0.1">
+                             Style="{StaticResource ModernGroupBox}">
                         <StackPanel>
                             <TextBlock Text="Smooth signal with previous values:" 
-                                     Foreground="White" 
+                                     Foreground="{StaticResource TextColor}" 
                                      Margin="0,5"/>
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -69,17 +64,18 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
-                                <TextBlock Text="Raw" Foreground="White" 
+                                <TextBlock Text="Raw" Foreground="{StaticResource TextColor}" 
                                          Grid.Column="0"/>
                                 <Slider x:Name="FilterSlider" 
+                                       Style="{StaticResource ModernSlider}"
                                        Grid.Column="1"
                                        Minimum="0" 
                                        Maximum="100" 
                                        Value="70" 
                                        TickFrequency="10"
                                        TickPlacement="BottomRight"
-                                       Margin="10,0"/>
-                                <TextBlock Text="Smooth" Foreground="White" 
+                                       Margin="10,10"/>
+                                <TextBlock Text="Smooth" Foreground="{StaticResource TextColor}" 
                                          Grid.Column="2"/>
                             </Grid>
                             <TextBlock x:Name="FilterValueText" 
@@ -100,71 +96,90 @@
 
             <!-- Sağ taraftaki data grid -->
             <GroupBox Header="Signal Statistics" DockPanel.Dock="Right"
-                      Padding="10" Margin="0,0,0,0"
-                      Foreground="White" BorderBrush="#3F3F46" BorderThickness="0.1">
+                      Style="{StaticResource ModernGroupBox}">
                 <DataGrid x:Name="StatisticsGrid"
-                                 AutoGenerateColumns="False"
-                                 Background="#252526"
-                                 BorderThickness="0"
-                                 GridLinesVisibility="Horizontal"
-                                 HeadersVisibility="Column"
-                                 IsReadOnly="True"
-                                 ItemsSource="{Binding}"
-                                 RowHeaderWidth="0">
-                    <DataGrid.Resources>
-                        <Style TargetType="DataGridColumnHeader">
-                            <Setter Property="Background" Value="#333337"/>
-                            <Setter Property="Foreground" Value="White"/>
-                            <Setter Property="Padding" Value="10,8"/>
-                            <Setter Property="FontWeight" Value="SemiBold"/>
-                            <Setter Property="BorderThickness" Value="0,0,1,1"/>
-                            <Setter Property="BorderBrush" Value="#3F3F46"/>
-                        </Style>
-                        <Style TargetType="DataGridCell">
-                            <Setter Property="Background" Value="Transparent"/>
-                            <Setter Property="Foreground" Value="White"/>
-                            <Setter Property="BorderThickness" Value="0"/>
-                            <Setter Property="Padding" Value="10,6"/>
-                        </Style>
-                        <Style TargetType="DataGridRow">
-                            <Setter Property="Background" Value="Transparent"/>
-                            <Style.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#333337"/>
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </DataGrid.Resources>
-
+                          Style="{StaticResource ModernDataGrid}"
+                          IsReadOnly="True"
+                          ItemsSource="{Binding}"
+                          RowHeaderWidth="0" AutoGenerateColumns="False">
                     <DataGrid.Columns>
                         <DataGridTemplateColumn Header="Signal" Width="2.5*">
+                            <DataGridTemplateColumn.HeaderStyle>
+                                <Style TargetType="DataGridColumnHeader" 
+                                       BasedOn="{StaticResource ModernDataGridColumnHeader}"/>
+                            </DataGridTemplateColumn.HeaderStyle>
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <DockPanel Margin="4,0">
-                                        <Rectangle Width="14" 
-                                                         Height="14" 
-                                                         Margin="0,0,8,0"
-                                                         Fill="{Binding Color}"/>
+                                        <Rectangle Width="14" Height="14" 
+                                                 Margin="0,0,8,0"
+                                                 Fill="{Binding Color}"/>
                                         <TextBlock Text="{Binding Title}" 
-                                                         Foreground="White"
-                                                         VerticalAlignment="Center"/>
+                                                 Foreground="{StaticResource TextColor}"
+                                                 VerticalAlignment="Center"/>
                                     </DockPanel>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="Current" 
-                                                  Width="*" 
-                                                  Binding="{Binding Value, StringFormat={}{0:F9}}"/>
-                        <DataGridTextColumn Header="Min" 
-                                                  Width="*"
-                                                  Binding="{Binding Statistics.Min, StringFormat={}{0:F9}}"/>
-                        <DataGridTextColumn Header="Max" 
-                                                  Width="*"
-                                                  Binding="{Binding Statistics.Max, StringFormat={}{0:F9}}"/>
-                        <DataGridTextColumn Header="Mean" 
-                                                  Width="*"
-                                                  Binding="{Binding Statistics.Mean, StringFormat={}{0:F9}}"/>
+                        <DataGridTextColumn Header="Current" Width="*" 
+                                          Binding="{Binding Value, StringFormat={}{0:F9}}">
+                            <DataGridTextColumn.HeaderStyle>
+                                <Style TargetType="DataGridColumnHeader" 
+                                       BasedOn="{StaticResource ModernDataGridColumnHeader}"/>
+                            </DataGridTextColumn.HeaderStyle>
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource TextColor}"/>
+                                    <Setter Property="VerticalAlignment" Value="Center"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="Min" Width="*"
+                                          Binding="{Binding Statistics.Min, StringFormat={}{0:F9}}">
+                            <DataGridTextColumn.HeaderStyle>
+                                <Style TargetType="DataGridColumnHeader" 
+                                       BasedOn="{StaticResource ModernDataGridColumnHeader}"/>
+                            </DataGridTextColumn.HeaderStyle>
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource TextColor}"/>
+                                    <Setter Property="VerticalAlignment" Value="Center"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="Max" Width="*"
+                                          Binding="{Binding Statistics.Max, StringFormat={}{0:F9}}">
+                            <DataGridTextColumn.HeaderStyle>
+                                <Style TargetType="DataGridColumnHeader" 
+                                       BasedOn="{StaticResource ModernDataGridColumnHeader}"/>
+                            </DataGridTextColumn.HeaderStyle>
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource TextColor}"/>
+                                    <Setter Property="VerticalAlignment" Value="Center"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="Mean" Width="*"
+                                          Binding="{Binding Statistics.Mean, StringFormat={}{0:F9}}">
+                            <DataGridTextColumn.HeaderStyle>
+                                <Style TargetType="DataGridColumnHeader" 
+                                       BasedOn="{StaticResource ModernDataGridColumnHeader}"/>
+                            </DataGridTextColumn.HeaderStyle>
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource TextColor}"/>
+                                    <Setter Property="VerticalAlignment" Value="Center"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
                     </DataGrid.Columns>
+                    <DataGrid.RowStyle>
+                        <Style TargetType="DataGridRow" BasedOn="{StaticResource ModernDataGridRow}"/>
+                    </DataGrid.RowStyle>
+                    <DataGrid.CellStyle>
+                        <Style TargetType="DataGridCell" BasedOn="{StaticResource ModernDataGridCell}"/>
+                    </DataGrid.CellStyle>
                 </DataGrid>
             </GroupBox>
         </DockPanel>
@@ -174,7 +189,7 @@
             <lvc:CartesianChart x:Name="Chart" 
                                Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Canvas}}"
                                Height="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Canvas}}"
-                               Background="#252526"
+                               Background="{StaticResource PanelBackground}"
                                DisableAnimations="True"
                                Hoverable="False"
                                IsHitTestVisible="True"
@@ -187,18 +202,37 @@
                                RenderOptions.BitmapScalingMode="HighQuality"
                                AnimationsSpeed="0">
                 <lvc:CartesianChart.ContextMenu>
-                    <ContextMenu>
-                        <MenuItem Header="Reset View" Click="ResetView_Click"/>
-                        <Separator/>
-                        <MenuItem Header="Export">
-                            <MenuItem Header="Save as PNG" Click="SaveAsPng_Click"/>
-                            <MenuItem Header="Save as CSV" Click="SaveAsCsv_Click"/>
+                    <ContextMenu Style="{StaticResource ModernContextMenu}">
+                        <MenuItem Style="{StaticResource ModernMenuItem}" 
+                                  Header="Reset View" 
+                                  Click="ResetView_Click"/>
+                        <Separator Style="{StaticResource ModernSeparator}"/>
+                        <MenuItem Style="{StaticResource ModernMenuItem}" 
+                                  Header="Export">
+                            <MenuItem Style="{StaticResource ModernMenuItem}" 
+                                      Header="Save as PNG" 
+                                      Click="SaveAsPng_Click"/>
+                            <MenuItem Style="{StaticResource ModernMenuItem}" 
+                                      Header="Save as CSV" 
+                                      Click="SaveAsCsv_Click"/>
                         </MenuItem>
-                        <Separator/>
-                        <MenuItem Header="Chart Options">
-                            <MenuItem Header="Toggle Grid Lines" IsCheckable="True" IsChecked="True" Click="ToggleGridLines_Click"/>
-                            <MenuItem Header="Toggle Point Markers" IsCheckable="True" Click="TogglePointMarkers_Click"/>
-                            <MenuItem Header="Toggle Smooth Lines" IsCheckable="True" IsChecked="True" Click="ToggleSmoothLines_Click"/>
+                        <Separator Style="{StaticResource ModernSeparator}"/>
+                        <MenuItem Style="{StaticResource ModernMenuItem}" 
+                                  Header="Chart Options">
+                            <MenuItem Style="{StaticResource ModernMenuItem}" 
+                                      Header="Toggle Grid Lines" 
+                                      IsCheckable="True" 
+                                      IsChecked="True" 
+                                      Click="ToggleGridLines_Click"/>
+                            <MenuItem Style="{StaticResource ModernMenuItem}" 
+                                      Header="Toggle Point Markers" 
+                                      IsCheckable="True" 
+                                      Click="TogglePointMarkers_Click"/>
+                            <MenuItem Style="{StaticResource ModernMenuItem}" 
+                                      Header="Toggle Smooth Lines" 
+                                      IsCheckable="True" 
+                                      IsChecked="False" 
+                                      Click="ToggleSmoothLines_Click"/>
                         </MenuItem>
                     </ContextMenu>
                 </lvc:CartesianChart.ContextMenu>
@@ -220,7 +254,8 @@
                 </lvc:CartesianChart.AxisX>
                 <lvc:CartesianChart.AxisY>
                     <lvc:Axis Title="Value"
-                         LabelFormatter="{Binding ValueFormatter}">
+                             Foreground="White" 
+                             LabelFormatter="{Binding ValueFormatter}">
                         <lvc:Axis.Separator>
                             <lvc:Separator Stroke="#3F3F46"/>
                         </lvc:Axis.Separator>
@@ -230,9 +265,9 @@
         </Canvas>
 
         <!-- Durum Çubuğu -->
-        <StatusBar Grid.Row="2" Background="#252526" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+        <StatusBar Grid.Row="2" Background="{StaticResource PanelBackground}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
             <StatusBarItem>
-                <TextBlock x:Name="StatusText" Foreground="White"
+                <TextBlock x:Name="StatusText" Foreground="{StaticResource TextColor}"
                          Text="Ready"/>
             </StatusBarItem>
         </StatusBar>
