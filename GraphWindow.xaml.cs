@@ -11,7 +11,7 @@ using System.Windows.Interop; // HwndSource için
 using System.Threading.Channels; // Channel için
 using System.Windows.Input; // MouseWheelEventArgs için
 using System.Windows.Shapes; // Rectangle için
-using Microsoft.Win32; // SaveFileDialog için
+using Microsoft.Win32; // SaveFileDialog için   
 using System.IO; // File işlemleri için
 using System.Drawing.Imaging; // ImageFormat için
 using System.Windows.Media.Imaging; // RenderTargetBitmap için
