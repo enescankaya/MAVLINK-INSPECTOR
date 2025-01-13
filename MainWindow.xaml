@@ -160,7 +160,7 @@
                       Padding="5"
                       VirtualizingStackPanel.IsVirtualizing="True"
                       VirtualizingStackPanel.VirtualizationMode="Recycling"
-                      SelectedItemChanged="TreeView_SelectedItemChanged" ScrollViewer.HorizontalScrollBarVisibility="Hidden" ScrollViewer.VerticalScrollBarVisibility="Hidden">
+                      SelectedItemChanged="TreeView_SelectedItemChanged" ScrollViewer.HorizontalScrollBarVisibility="Hidden" ScrollViewer.VerticalScrollBarVisibility="Visible">
                 <TreeView.Resources>
                     <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" 
                                     Color="#44FFFFFF"/>
@@ -213,8 +213,8 @@
 
 
             <!-- Message Details güncellemesi -->
-            <GroupBox Grid.Column="2" Header="Message Details" Background="{StaticResource PanelBackground}" ScrollViewer.HorizontalScrollBarVisibility="Hidden" ScrollViewer.VerticalScrollBarVisibility="Hidden" BorderThickness="0.1">
-                <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden" CanContentScroll="True">
+            <GroupBox Grid.Column="2" Header="Message Details" Background="{StaticResource PanelBackground}" ScrollViewer.HorizontalScrollBarVisibility="Auto" BorderThickness="0.1">
+                <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Visible" CanContentScroll="True">
                     <StackPanel Margin="5">
                         <!-- Header Section -->
                         <Border Background="{StaticResource ControlBackground}" 

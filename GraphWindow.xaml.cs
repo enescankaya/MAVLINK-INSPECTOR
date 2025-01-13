@@ -121,7 +121,11 @@ namespace MavlinkInspector
         public GraphWindow(PacketInspector<MAVLink.MAVLinkMessage> inspector, IEnumerable<(byte sysid, byte compid, uint msgid, string field)> fields)
         {
             InitializeComponent();
-
+            Chart.PreviewMouseWheel += (s, e) =>
+            {
+                // Zoom değiştiğinde AutoScale'i kapat
+                AutoScaleCheckbox.IsChecked = false;
+            };
             // Window yapılandırması
             Owner = Application.Current.MainWindow; // MainWindow'u parent olarak ayarla
 
@@ -223,7 +227,6 @@ namespace MavlinkInspector
             PauseInfoText.Opacity = 0.6;
 
             SaveOriginalAxisLimits();
-            InitializeChartInteraction();
 
             // Mouse wheel event handler'ı Preview event'ine bağla
             //Chart.PreviewMouseWheel += Chart_PreviewMouseWheel;
@@ -237,15 +240,6 @@ namespace MavlinkInspector
             _originalMinY = Chart.AxisY[0].MinValue;
             _originalMaxY = Chart.AxisY[0].MaxValue;
         }
-
-        private void InitializeChartInteraction()
-        {
-            // Bu metodun çağrılarını kaldır çünkü artık bu özellikleri kullanmıyoruz
-            // Chart.PreviewMouseLeftButtonDown += Chart_PreviewMouseLeftButtonDown;
-            // Chart.PreviewMouseMove += Chart_PreviewMouseMove;
-            // Chart.PreviewMouseLeftButtonUp += Chart_PreviewMouseLeftButtonUp;
-        }
-
         private void Chart_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
         {
             // Sağ tık menüsünün açılmasına izin ver
