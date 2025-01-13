@@ -83,7 +83,6 @@ public partial class MainWindow : Window
     private List<MAVLink.MAVLinkMessage> _selectedMessages = new();
 
     private HashSet<(byte sysid, byte compid, uint msgid, string field)> _selectedFieldsForGraph = new();
-    private Button? _graphButton;  // Yeni graph butonu için referans
 
     private class MessageUpdateInfo
     {
@@ -705,7 +704,7 @@ public partial class MainWindow : Window
                     foreach (var field in fields)
                     {
                         var value = field.GetValue(message.data);
-                        var typeName = field.FieldType.ToString();
+                        var typeName = field.FieldType.ToString().Replace("System.", ""); // System. kısmını kaldır
 
                         var item = new
                         {
@@ -1038,15 +1037,11 @@ public partial class MainWindow : Window
     /// </summary>
     private void InitializeUpdateIntervalComboBox()
     {
-        var intervals = new[]
-        {
-            new { Display = "100", Value = 100 },
-            new { Display = "200", Value = 200 },
-            new { Display = "500", Value = 500 },
-            new { Display = "1000", Value = 1000 }
-        };
-
-        UpdateIntervalComboBox.ItemsSource = intervals;
+        // Direkt olarak ComboBoxItem'lar oluştur
+        UpdateIntervalComboBox.Items.Add(new ComboBoxItem { Content = "100" });
+        UpdateIntervalComboBox.Items.Add(new ComboBoxItem { Content = "200" });
+        UpdateIntervalComboBox.Items.Add(new ComboBoxItem { Content = "500" });
+        UpdateIntervalComboBox.Items.Add(new ComboBoxItem { Content = "1000" });
         UpdateIntervalComboBox.SelectedIndex = 1; // 200ms varsayılan
     }
 
@@ -1057,7 +1052,8 @@ public partial class MainWindow : Window
     /// <param name="e">The event arguments.</param>
     private void UpdateIntervalComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (UpdateIntervalComboBox.SelectedValue is int newInterval)
+        if (UpdateIntervalComboBox.SelectedItem is ComboBoxItem item &&
+            int.TryParse(item.Content.ToString(), out int newInterval))
         {
             // Timer'ları durdur
             _treeViewUpdateTimer.Stop();
@@ -1355,16 +1351,8 @@ public partial class MainWindow : Window
 
     private void InitializeGraphButton()
     {
-        _graphButton = new Button
-        {
-            Content = "Graph Selected Fields",
-            Width = 150,
-            Height = 30,
-            Margin = new Thickness(5),
-            IsEnabled = false
-        };
-        _graphButton.Click += GraphButton_Click;
 
+        _graphButton.Click += GraphButton_Click;
         // Button'u StatusBar'a ekle
         var separator = new Separator();
         statusBar.Items.Add(separator);

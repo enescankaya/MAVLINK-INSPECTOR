@@ -402,8 +402,11 @@
             <Setter Property="Foreground" Value="{StaticResource TextColor}"/>
             <Setter Property="BorderBrush" Value="{StaticResource BorderColor}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="Padding" Value="5"/>
             <Setter Property="FontSize" Value="13"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="TextAlignment" Value="Center"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TextBox">
@@ -416,7 +419,7 @@
                             <ScrollViewer x:Name="PART_ContentHost" 
                                         Focusable="false" 
                                         HorizontalScrollBarVisibility="Hidden" 
-                                        VerticalScrollBarVisibility="Hidden"/>
+                                        VerticalScrollBarVisibility="Hidden" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="true">

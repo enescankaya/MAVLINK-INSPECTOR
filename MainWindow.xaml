@@ -1,77 +1,9 @@
 ﻿<Window x:Class="MavlinkInspector.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="MAVLink Inspector" Height="700" Width="1200"
-        Background="#1E1E1E" Closing="Window_Closing" >
-    <Window.Resources>
-        <!-- Modern renk paleti -->
-        <SolidColorBrush x:Key="WindowBackground" Color="#1E1E1E"/>
-        <SolidColorBrush x:Key="PanelBackground" Color="#252526"/>
-        <SolidColorBrush x:Key="ControlBackground" Color="#2D2D30"/>
-        <SolidColorBrush x:Key="AccentColor" Color="#007ACC"/>
-        <SolidColorBrush x:Key="TextColor" Color="#D4D4D4"/>
-        <SolidColorBrush x:Key="BorderColor" Color="#3F3F46"/>
-
-        <!-- TreeView stil güncellemesi -->
-        <Style TargetType="TreeViewItem">
-            <Setter Property="IsExpanded" Value="True"/>
-            <Setter Property="Padding" Value="8,4"/>
-            <Setter Property="FontFamily" Value="Segoe UI"/>
-            <Setter Property="FontSize" Value="10"/>
-            <Setter Property="Foreground" Value="{StaticResource TextColor}"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#3E3E42"/>
-                </Trigger>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#094771"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <!-- Ortak kontrol stilleri -->
-        <Style TargetType="Button">
-            <Setter Property="Background" Value="{StaticResource AccentColor}"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Padding" Value="16,6"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontFamily" Value="Segoe UI"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                CornerRadius="4"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#1C97EA"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <!-- GroupBox stil güncellemesi -->
-        <Style TargetType="GroupBox">
-            <Setter Property="BorderBrush" Value="{StaticResource BorderColor}"/>
-            <Setter Property="Foreground" Value="{StaticResource TextColor}"/>
-            <Setter Property="Padding" Value="10"/>
-            <Setter Property="Margin" Value="5"/>
-            <Setter Property="HeaderTemplate">
-                <Setter.Value>
-                    <DataTemplate>
-                        <TextBlock Text="{Binding}"
-                                 FontSize="13"
-                                 FontFamily="Segoe UI"
-                                 Margin="0,0,0,5"/>
-                    </DataTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-    </Window.Resources>
+        Title="MAVLink Inspector" Height="700" Width="1110"
+        Background="{StaticResource WindowBackground}" 
+        Closing="Window_Closing">
     <Grid Margin="10">
         <Grid.Resources>
             <Style TargetType="TreeViewItem">
@@ -84,62 +16,82 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5" >
-            <GroupBox Header="Connection Settings" Padding="5" BorderThickness="0.1">
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5">
+            <!-- Connection Settings GroupBox -->
+            <GroupBox Header="Connection Settings" Style="{StaticResource ModernGroupBox}">
                 <StackPanel Orientation="Horizontal">
                     <ComboBox Width="120" Name="ConnectionTypeComboBox" Margin="5"
-                          SelectionChanged="ConnectionTypeComboBox_SelectionChanged" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Background="White"/>
+                             Style="{StaticResource ModernComboBox}"
+                             SelectionChanged="ConnectionTypeComboBox_SelectionChanged">
+                        <ComboBox.ItemContainerStyle>
+                            <Style TargetType="ComboBoxItem" BasedOn="{StaticResource ModernComboBoxItem}"/>
+                        </ComboBox.ItemContainerStyle>
+                    </ComboBox>
 
                     <StackPanel Name="SerialPanel" Orientation="Horizontal">
-                        <ComboBox Width="120" Name="PortComboBox" Margin="5" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Background="White"/>
-                        <ComboBox Width="120" Name="BaudRateComboBox" Margin="5" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Background="White"/>
+                        <ComboBox Width="120" Name="PortComboBox" Margin="5"
+                                 Style="{StaticResource ModernComboBox}">
+                            <ComboBox.ItemContainerStyle>
+                                <Style TargetType="ComboBoxItem" BasedOn="{StaticResource ModernComboBoxItem}"/>
+                            </ComboBox.ItemContainerStyle>
+                        </ComboBox>
+                        <ComboBox Width="120" Name="BaudRateComboBox" Margin="5"
+                                 Style="{StaticResource ModernComboBox}">
+                            <ComboBox.ItemContainerStyle>
+                                <Style TargetType="ComboBoxItem" BasedOn="{StaticResource ModernComboBoxItem}"/>
+                            </ComboBox.ItemContainerStyle>
+                        </ComboBox>
                     </StackPanel>
 
-                    <StackPanel Name="NetworkPanel" Orientation="Horizontal" Visibility="Collapsed">
-                        <TextBox Width="120" Name="IpAddressTextBox" Margin="5" Text="127.0.0.1" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Background="White"/>
-                        <TextBox Width="80" Name="PortTextBox" Margin="5" Text="5762" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Background="White"/>
+                    <StackPanel Name="NetworkPanel" Orientation="Horizontal" Visibility="Collapsed" >
+                        <TextBox Width="120" Name="IpAddressTextBox" Margin="5" Text="127.0.0.1"
+                                Style="{StaticResource ModernTextBox}" VerticalContentAlignment="Bottom"
+/>
+                        <TextBox Width="80" Name="PortTextBox" Margin="5" Text="5762"
+                                Style="{StaticResource ModernTextBox}"  VerticalContentAlignment="Bottom"
+/>
                     </StackPanel>
 
-                    <Button Name="ConnectButton" Content="Connect" Width="100" Margin="5" 
-                        Click="ConnectButton_Click"/>
+                    <Button Name="ConnectButton" Content="Connect" Width="100" Margin="5"
+                            Style="{StaticResource ModernButton}"
+                            Click="ConnectButton_Click"/>
                 </StackPanel>
             </GroupBox>
 
-            <GroupBox Header="Display Options" Padding="5" BorderThickness="0.1">
+            <!-- Display Settings GroupBox -->
+            <GroupBox Header="Display Options" Style="{StaticResource ModernGroupBox}">
                 <StackPanel Orientation="Horizontal">
-                    <CheckBox Name="ShowGCSTraffic" Content="Show GCS Traffic" Margin="5" 
-                         VerticalAlignment="Center" Foreground="{StaticResource TextColor}" />
-                    <Button Name="ResetButton" Content="Reset" Width="80" Margin="5" 
-                        Click="ResetButton_Click"/>
+                    <CheckBox Name="ShowGCSTraffic" Content="Show GCS Traffic" Margin="5"
+                             Style="{StaticResource ModernCheckBox}"/>
+                    <Button Name="ResetButton" Content="Reset" Width="80" Margin="5"
+                            Style="{StaticResource ModernButton}"
+                            Click="ResetButton_Click"/>
+
                 </StackPanel>
             </GroupBox>
 
-            <!-- Yeni Update Settings GroupBox -->
-            <GroupBox Header="Update Settings" Padding="5" BorderThickness="0.1">
+            <!-- Update Settings GroupBox -->
+
+            <!-- Update Settings GroupBox -->
+            <GroupBox Header="Update Settings" Style="{StaticResource ModernGroupBox}">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="Update Interval:" 
+                             Foreground="{StaticResource TextColor}"
                              VerticalAlignment="Center" 
-                             Margin="5,0"
-                             Foreground="{StaticResource TextColor}"/>
+                             Margin="5,0"/>
                     <ComboBox Name="UpdateIntervalComboBox" 
+                             Style="{StaticResource ModernComboBox}"
                              Width="80" 
                              Margin="5"
-                             SelectedValuePath="Value"
-                             DisplayMemberPath="Display"
-                             SelectionChanged="UpdateIntervalComboBox_SelectionChanged"
-                             VerticalContentAlignment="Center"
-                             HorizontalContentAlignment="Center"
-                             Background="White">
-                        <ComboBox.Resources>
-                            <Style TargetType="ComboBoxItem">
-                                <Setter Property="Foreground" Value="#333333"/>
-                            </Style>
-                        </ComboBox.Resources>
+                             SelectionChanged="UpdateIntervalComboBox_SelectionChanged">
+                        <ComboBox.ItemContainerStyle>
+                            <Style TargetType="ComboBoxItem" BasedOn="{StaticResource ModernComboBoxItem}"/>
+                        </ComboBox.ItemContainerStyle>
                     </ComboBox>
                     <TextBlock Text="ms" 
+                             Foreground="{StaticResource TextColor}"
                              VerticalAlignment="Center"
-                             Margin="0,0,5,0"
-                             Foreground="{StaticResource TextColor}"/>
+                             Margin="0,0,5,0"/>
                 </StackPanel>
             </GroupBox>
         </StackPanel>
@@ -213,11 +165,12 @@
 
 
             <!-- Message Details güncellemesi -->
-            <GroupBox Grid.Column="2" Header="Message Details" Background="{StaticResource PanelBackground}" ScrollViewer.HorizontalScrollBarVisibility="Auto" BorderThickness="0.1">
+            <GroupBox Grid.Column="2" Header="Message Details" 
+                     Style="{StaticResource ModernGroupBox}">
                 <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Visible" CanContentScroll="True">
                     <StackPanel Margin="5">
                         <!-- Header Section -->
-                        <Border Background="{StaticResource ControlBackground}" 
+                        <Border Background="{StaticResource BorderColor}" 
                     CornerRadius="4" Padding="10" Margin="0,0,0,10">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -295,10 +248,10 @@
            Foreground="{StaticResource TextColor}"
            FontSize="13"/>
 
-                        <Border Background="{StaticResource ControlBackground}" 
+                        <Border Background="Transparent" 
         CornerRadius="4" 
         Margin="0,5"
-        BorderBrush="{StaticResource BorderColor}"
+        BorderBrush="{StaticResource PanelBackground}"
         BorderThickness="1">
                             <ListView x:Name="fieldsListView" 
               Background="Transparent"
@@ -409,6 +362,11 @@
             <Separator Background="{StaticResource BorderColor}"/>
             <StatusBarItem Padding="10,5">
                 <TextBlock x:Name="statusRateText" Text="Rate: 0 msg/s"/>
+            </StatusBarItem>
+            <StatusBarItem Padding="10,5">
+                <Button  x:Name="_graphButton" Width="170" Height="40" Style="{StaticResource ModernButton}" Content = "Graph Selected Fields">
+
+                </Button>
             </StatusBarItem>
         </StatusBar>
     </Grid>
