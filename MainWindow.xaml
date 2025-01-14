@@ -104,26 +104,36 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- TreeView güncellemesi -->
-            <TreeView Name="treeView1" Grid.Column="0"
-                      Background="{StaticResource PanelBackground}"
-                      BorderThickness="1"
-                      BorderBrush="{StaticResource BorderColor}"
-                      Padding="5"
-                      VirtualizingStackPanel.IsVirtualizing="True"
-                      VirtualizingStackPanel.VirtualizationMode="Recycling"
-                      SelectedItemChanged="TreeView_SelectedItemChanged" ScrollViewer.HorizontalScrollBarVisibility="Hidden" ScrollViewer.VerticalScrollBarVisibility="Visible">
-                <TreeView.Resources>
-                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" 
-                                    Color="#44FFFFFF"/>
-                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" 
-                                    Color="White"/>
-                    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" 
-                                    Color="#22FFFFFF"/>
-                    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" 
-                                    Color="LightGray"/>
-                </TreeView.Resources>
-            </TreeView>
+            <StackPanel Grid.Column="0">
+                <!-- Yeni bilgi yazısı -->
+                <TextBlock Text="Right-click on a message to open in new tab"
+                          Foreground="#8B949E"
+                          FontSize="12"
+                          Margin="5,0,0,5"
+                          HorizontalAlignment="Left"
+                          FontStyle="Italic"/>
+
+                <!-- Mevcut TreeView -->
+                <TreeView Name="treeView1"
+                          Background="{StaticResource PanelBackground}"
+                          BorderThickness="1"
+                          BorderBrush="{StaticResource BorderColor}"
+                          Padding="5"
+                          VirtualizingStackPanel.IsVirtualizing="True"
+                          VirtualizingStackPanel.VirtualizationMode="Recycling"
+                          SelectedItemChanged="TreeView_SelectedItemChanged" ScrollViewer.HorizontalScrollBarVisibility="Hidden" ScrollViewer.VerticalScrollBarVisibility="Visible">
+                    <TreeView.Resources>
+                        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" 
+                                        Color="#44FFFFFF"/>
+                        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" 
+                                        Color="White"/>
+                        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" 
+                                        Color="#22FFFFFF"/>
+                        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" 
+                                        Color="LightGray"/>
+                    </TreeView.Resources>
+                </TreeView>
+            </StackPanel>
 
             <!-- Separator -->
             <GridSplitter Grid.Column="1" 
@@ -165,177 +175,281 @@
 
 
             <!-- Message Details güncellemesi -->
-            <GroupBox Grid.Column="2" Header="Message Details" Style="{StaticResource ModernGroupBox}">
-                <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Visible" CanContentScroll="True">
-                    <StackPanel Margin="5">
-                        <!-- Header Section -->
-                        <Border Background="{StaticResource ControlBackground}" 
+            <TabControl x:Name="messageTabControl" Grid.Column="2" 
+                       Background="{StaticResource PanelBackground}"
+                       BorderBrush="{StaticResource BorderColor}"
+                       BorderThickness="1">
+                <TabControl.Resources>
+                    <Style TargetType="TabItem">
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="TabItem">
+                                    <Border x:Name="Border" BorderThickness="1,1,1,0" 
+                                            BorderBrush="{StaticResource BorderColor}"
+                                            CornerRadius="4,4,0,0" Margin="2,0,2,0">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <ContentPresenter x:Name="ContentSite"
+                                                            ContentSource="Header"
+                                                            Margin="10,2"
+                                                            VerticalAlignment="Center"/>
+                                            <Button x:Name="CloseButton" 
+                                                Grid.Column="1"
+                                                Content="✕"
+                                                Width="20" Height="20"
+                                                Margin="0,0,5,0"
+                                                BorderThickness="0" Click="CloseTab_Click">
+                                                <Button.Style>
+                                                    <Style TargetType="Button">
+                                                        <Setter Property="Background" Value="Transparent"/>
+                                                        <Setter Property="Foreground" Value="White"/>
+                                                        <Setter Property="Template">
+                                                            <Setter.Value>
+                                                                <ControlTemplate TargetType="Button">
+                                                                    <Border x:Name="border" 
+                                Background="{TemplateBinding Background}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                                                                        <ContentPresenter HorizontalAlignment="Center" 
+                                            VerticalAlignment="Center"/>
+                                                                    </Border>
+                                                                </ControlTemplate>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                        <Style.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter Property="Foreground" Value="Red"/>
+                                                                <Setter Property="Background" Value="Transparent"/>
+                                                            </Trigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+
+                                        </Grid>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="Border" Property="Background" Value="{StaticResource ControlBackground}"/>
+                                            <Setter TargetName="CloseButton" Property="Visibility" Value="Visible"/>
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="False">
+                                            <Setter TargetName="Border" Property="Background" Value="{StaticResource PanelBackground}"/>
+                                        </Trigger>
+                                        <MultiTrigger>
+                                            <MultiTrigger.Conditions>
+                                                <Condition Property="IsMouseOver" Value="True"/>
+                                                <Condition Property="IsSelected" Value="False"/>
+                                            </MultiTrigger.Conditions>
+                                            <Setter TargetName="Border" Property="Background" Value="{StaticResource ControlBackground}"/>
+                                            <Setter TargetName="CloseButton" Property="Visibility" Value="Visible"/>
+                                        </MultiTrigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                        <Setter Property="Foreground" Value="{StaticResource TextColor}"/>
+                        <Setter Property="Background" Value="{StaticResource PanelBackground}"/>
+                        <Setter Property="HeaderTemplate">
+                            <Setter.Value>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding}"
+                                                 Foreground="{StaticResource TextColor}"
+                                                 VerticalAlignment="Center"
+                                                 Margin="5,0"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </TabControl.Resources>
+
+                <TabItem x:Name="defaultTab" Header="Message Details">
+                    <ScrollViewer HorizontalScrollBarVisibility="Hidden" 
+                                VerticalScrollBarVisibility="Visible" 
+                                CanContentScroll="True">
+                        <!-- Mevcut message details içeriği buraya -->
+                        <StackPanel Margin="5">
+                            <!-- Header Section -->
+                            <Border Background="{StaticResource ControlBackground}" 
                                 CornerRadius="4" 
                                 Padding="10" 
                                 Margin="0,0,0,10"
                                 BorderBrush="{StaticResource BorderColor}"
                                 BorderThickness="1">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="120"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="120"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="28"/>
-                                    <RowDefinition Height="28"/>
-                                    <RowDefinition Height="28"/>
-                                    <RowDefinition Height="28"/>
-                                    <RowDefinition Height="28"/>
-                                </Grid.RowDefinitions>
-                                <!-- Header -->
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Header:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="0" Grid.Column="1" x:Name="headerText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="120"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="28"/>
+                                        <RowDefinition Height="28"/>
+                                        <RowDefinition Height="28"/>
+                                        <RowDefinition Height="28"/>
+                                        <RowDefinition Height="28"/>
+                                    </Grid.RowDefinitions>
+                                    <!-- Header -->
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Header:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Row="0" Grid.Column="1" x:Name="headerText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
 
-                                <!-- Length -->
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Length:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="1" Grid.Column="1" x:Name="lengthText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+                                    <!-- Length -->
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Length:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Row="1" Grid.Column="1" x:Name="lengthText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
 
-                                <!-- Sequence -->
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Sequence:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="2" Grid.Column="1" x:Name="seqText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+                                    <!-- Sequence -->
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Sequence:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Row="2" Grid.Column="1" x:Name="seqText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
 
-                                <!-- System ID -->
-                                <TextBlock Grid.Row="3" Grid.Column="0" Text="System ID:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="3" Grid.Column="1" x:Name="sysidText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+                                    <!-- System ID -->
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="System ID:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Row="3" Grid.Column="1" x:Name="sysidText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
 
-                                <!-- Component ID -->
-                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Component ID:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="4" Grid.Column="1" x:Name="compidText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+                                    <!-- Component ID -->
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Component ID:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Row="4" Grid.Column="1" x:Name="compidText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
 
-                                <!-- Message ID -->
-                                <TextBlock Grid.Row="0" Grid.Column="2" Text="Message ID:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="0" Grid.Column="3" x:Name="msgidText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+                                    <!-- Message ID -->
+                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="Message ID:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Row="0" Grid.Column="3" x:Name="msgidText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
 
-                                <!-- Message Type -->
-                                <TextBlock Grid.Row="1" Grid.Column="2" Text="Message Type:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="1" Grid.Column="3" x:Name="msgTypeText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+                                    <!-- Message Type -->
+                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="Message Type:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Row="1" Grid.Column="3" x:Name="msgTypeText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
 
-                                <!-- Message Type Name -->
-                                <TextBlock Grid.Row="2" Grid.Column="2" Text="Message Type Name:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="2" Grid.Column="3" x:Name="msgTypeNameText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+                                    <!-- Message Type Name -->
+                                    <TextBlock Grid.Row="2" Grid.Column="2" Text="Message Type Name:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Row="2" Grid.Column="3" x:Name="msgTypeNameText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
 
-                                <!-- CRC16 -->
-                                <TextBlock Grid.Row="3" Grid.Column="2" Text="CRC16:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="3" Grid.Column="3" x:Name="crc16Text" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+                                    <!-- CRC16 -->
+                                    <TextBlock Grid.Row="3" Grid.Column="2" Text="CRC16:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Row="3" Grid.Column="3" x:Name="crc16Text" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
 
-                                <!-- MAVLink Version -->
-                                <TextBlock Grid.Row="4" Grid.Column="2" Text="MAVLink Version:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="4" Grid.Column="3" x:Name="isMavlink2Text" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
-                            </Grid>
-                        </Border>
+                                    <!-- MAVLink Version -->
+                                    <TextBlock Grid.Row="4" Grid.Column="2" Text="MAVLink Version:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Row="4" Grid.Column="3" x:Name="isMavlink2Text" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+                                </Grid>
+                            </Border>
 
-                        <!-- Fields Section -->
-                        <TextBlock Text="Message Fields" 
+                            <!-- Fields Section -->
+                            <TextBlock Text="Message Fields" 
            FontWeight="SemiBold" 
            Margin="5,5,5,5" 
            Foreground="{StaticResource TextColor}"
            FontSize="13"/>
 
-                        <Border Background="{StaticResource ControlBackground}" 
-        CornerRadius="4" 
-        Margin="0,5"
-        BorderBrush="{StaticResource BorderColor}"
-        BorderThickness="1">
-                            <ListView x:Name="fieldsListView" 
-              Background="Transparent"
-              BorderThickness="0.4"
-              Margin="2">
-                                <ListView.Resources>
-                                    <!-- GridViewColumnHeader Style -->
-                                    <Style TargetType="GridViewColumnHeader">
-                                        <Setter Property="Background" Value="Transparent"/>
-                                        <Setter Property="Foreground" Value="#A0A0A0"/>
-                                        <Setter Property="Height" Value="32"/>
-                                        <Setter Property="Padding" Value="8,0"/>
-                                        <Setter Property="Template">
-                                            <Setter.Value>
-                                                <ControlTemplate TargetType="GridViewColumnHeader">
-                                                    <Border Background="{TemplateBinding Background}"
+                            <Border Background="{StaticResource ControlBackground}" 
+                                    CornerRadius="4" 
+                                    Margin="0,5"
                                     BorderBrush="{StaticResource BorderColor}"
-                                    BorderThickness="0,0,0,1"
-                                    Padding="{TemplateBinding Padding}">
-                                                        <TextBlock Text="{TemplateBinding Content}"
-                                         Foreground="{TemplateBinding Foreground}"
-                                         VerticalAlignment="Center"
-                                         FontSize="12"/>
-                                                    </Border>
-                                                </ControlTemplate>
-                                            </Setter.Value>
-                                        </Setter>
-                                        <Style.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter Property="Background" Value="#3E3E42"/>
-                                            </Trigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ListView.Resources>
+                                    BorderThickness="1">
+                                <ListView x:Name="fieldsListView" 
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Margin="2"
+                                        SelectionMode="Extended">
+                                    <ListView.View>
+                                        <GridView>
+                                            <GridViewColumn Header="Field" Width="140">
+                                                <GridViewColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding Field}" 
+                                                                 Foreground="{StaticResource TextColor}"
+                                                                 Padding="0,10,0,0" 
+                                                                 VerticalAlignment="Bottom"/>
+                                                    </DataTemplate>
+                                                </GridViewColumn.CellTemplate>
+                                            </GridViewColumn>
+                                            <GridViewColumn Header="Value" Width="180">
+                                                <GridViewColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding Value}" 
+                                                                 Foreground="{StaticResource TextColor}"
+                                                                 Padding="0,10,0,0"
+                                                                 TextWrapping="Wrap" 
+                                                                 VerticalAlignment="Bottom"/>
+                                                    </DataTemplate>
+                                                </GridViewColumn.CellTemplate>
+                                            </GridViewColumn>
+                                            <GridViewColumn Header="Type" Width="120">
+                                                <GridViewColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding Type}" 
+                                                                 Foreground="#A0A0A0"
+                                                                 Padding="0,10,0,0" 
+                                                                 VerticalAlignment="Bottom"/>
+                                                    </DataTemplate>
+                                                </GridViewColumn.CellTemplate>
+                                            </GridViewColumn>
+                                        </GridView>
+                                    </ListView.View>
 
-                                <ListView.View>
-                                    <GridView>
-                                        <GridViewColumn Header="Field" Width="140">
-                                            <GridViewColumn.CellTemplate>
-                                                <DataTemplate>
-                                                    <TextBlock Text="{Binding Field}" 
-                                     Foreground="{StaticResource TextColor}"
-                                     Padding="0,10,0,0" VerticalAlignment="Bottom"/>
-                                                </DataTemplate>
-                                            </GridViewColumn.CellTemplate>
-                                        </GridViewColumn>
-                                        <GridViewColumn Header="Value" Width="180">
-                                            <GridViewColumn.CellTemplate>
-                                                <DataTemplate>
-                                                    <TextBlock Text="{Binding Value}" 
-                                     Foreground="{StaticResource TextColor}"
-                                     Padding="0,10,0,0"
-                                     TextWrapping="Wrap" VerticalAlignment="Bottom"/>
-                                                </DataTemplate>
-                                            </GridViewColumn.CellTemplate>
-                                        </GridViewColumn>
-                                        <GridViewColumn Header="Type" Width="120">
-                                            <GridViewColumn.CellTemplate>
-                                                <DataTemplate>
-                                                    <TextBlock Text="{Binding Type}" 
-                                     Foreground="#A0A0A0"
-                                     Padding="0,10,0,0" VerticalAlignment="Bottom"/>
-                                                </DataTemplate>
-                                            </GridViewColumn.CellTemplate>
-                                        </GridViewColumn>
-                                    </GridView>
-                                </ListView.View>
+                                    <ListView.Resources>
+                                        <!-- GridViewColumnHeader Style -->
+                                        <Style TargetType="GridViewColumnHeader" >
+                                            <Setter Property="Background" Value="Transparent"/>
+                                            <Setter Property="Foreground" Value="#A0A0A0"/>
+                                            <Setter Property="Height" Value="32"/>
+                                            <Setter Property="Padding" Value="8,0"/>
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="GridViewColumnHeader">
+                                                        <Border Background="{TemplateBinding Background}"
+                                                                BorderBrush="{StaticResource BorderColor}"
+                                                                BorderThickness="0,0,0,1"
+                                                                Padding="{TemplateBinding Padding}">
+                                                            <TextBlock Text="{TemplateBinding Content}"
+                                                                     Foreground="{TemplateBinding Foreground}"
+                                                                     VerticalAlignment="Center"
+                                                                     FontSize="12"/>
+                                                        </Border>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="#3E3E42"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ListView.Resources>
 
-                                <ListView.ItemContainerStyle>
-                                    <Style TargetType="ListViewItem">
-                                        <Setter Property="Background" Value="Transparent"/>
-                                        <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                                        <Setter Property="BorderBrush" Value="{StaticResource BorderColor}"/>
-                                        <Setter Property="Margin" Value="0"/>
-                                        <Setter Property="Height" Value="32"/>
-                                        <Setter Property="VerticalAlignment" Value="Bottom"/>
-                                        <Style.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter Property="Background" Value="#3E3E42"/>
-                                            </Trigger>
-                                            <Trigger Property="IsSelected" Value="True">
-                                                <Setter Property="Background" Value="#094771"/>
-                                            </Trigger>
-                                            <Trigger Property="IsSelected" Value="False">
-                                                <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                                            </Trigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ListView.ItemContainerStyle>
-                            </ListView>
-                        </Border>
-                    </StackPanel>
-                </ScrollViewer>
-            </GroupBox>
+                                    <ListView.ItemContainerStyle>
+                                        <Style TargetType="ListViewItem">
+                                            <Setter Property="Background" Value="Transparent"/>
+                                            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                            <Setter Property="BorderBrush" Value="{StaticResource BorderColor}"/>
+                                            <Setter Property="Margin" Value="0"/>
+                                            <Setter Property="Height" Value="32"/>
+                                            <Setter Property="VerticalAlignment" Value="Bottom"/>
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="#3E3E42"/>
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter Property="Background" Value="#094771"/>
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="False">
+                                                    <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ListView.ItemContainerStyle>
+                                </ListView>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+            </TabControl>
 
         </Grid>
 

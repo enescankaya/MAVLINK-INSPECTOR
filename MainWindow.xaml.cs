@@ -9,6 +9,8 @@ using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Windows.Input;
 using System.Windows.Controls.Primitives;
+using System.Windows.Data;
+using MavlinkInspector.Controls;
 
 namespace MavlinkInspector;
 
@@ -91,12 +93,16 @@ public partial class MainWindow : Window
         public string LastHeader { get; set; } = string.Empty;
     }
 
+    private MessageDetailsControl defaultDetailsControl;
+
     /// <summary>
     /// Initializes a new instance of the MainWindow class.
     /// </summary>
     public MainWindow()
     {
         InitializeComponent();
+        defaultDetailsControl = new MessageDetailsControl(_mavInspector);
+        defaultDetailsControl.FieldsSelectedForGraph += OnFieldsSelectedForGraph;
         InitializeUI();
         SetupTimer();
         SetupMessageHandling();
@@ -112,6 +118,12 @@ public partial class MainWindow : Window
         _cleanupTimer.Interval = TimeSpan.FromMilliseconds(CLEANUP_INTERVAL_MS);
         _cleanupTimer.Tick += CleanupTimer_Tick;
         _cleanupTimer.Start();
+    }
+
+    private void OnFieldsSelectedForGraph(object? sender, IEnumerable<(byte sysid, byte compid, uint msgid, string field)> fields)
+    {
+        var graphWindow = new GraphWindow(_mavInspector, fields.ToList());
+        graphWindow.Show();
     }
 
     /// <summary>
@@ -158,7 +170,7 @@ public partial class MainWindow : Window
         {
             _connectionManager.OnMessageSent -= HandleMessage;
             RemoveGCSTrafficFromTreeView();
-            ResetButton_Click(s, e);
+            Dispatcher.BeginInvoke(RefreshTreeView);
         };
 
         // Başlangıçta GCS trafiğini dinlemeye başla
@@ -220,8 +232,8 @@ public partial class MainWindow : Window
     /// <summary>
     /// Handles the tick event of the details update timer.
     /// </summary>
-    /// <param name="sender">The event sender.</param>
-    /// <param name="e">The event arguments.</param>
+    /// <param="sender">The event sender.</param>
+    /// <param="e">The event arguments.</param>
     private void DetailsTimer_Tick(object sender, EventArgs e)
     {
         if (_currentlyDisplayedMessage != null)
@@ -245,8 +257,8 @@ public partial class MainWindow : Window
     /// <summary>
     /// Handles the click event of the Connect button.
     /// </summary>
-    /// <param name="sender">The event sender.</param>
-    /// <param name="e">The event arguments.</param>
+    /// <param="sender">The event sender.</param>
+    /// <param="e">The event arguments.</param>
     private async void ConnectButton_Click(object sender, RoutedEventArgs e)
     {
         if (_connectionManager.IsConnected)
@@ -458,7 +470,7 @@ public partial class MainWindow : Window
     /// Gets or creates a component node in the TreeView.
     /// </summary>
     /// <param name="vehicleNode">The vehicle node.</param>
-    /// <param name="message">The MAVLink message.</param>
+    /// <param="message">The MAVLink message.</param>
     /// <returns>The TreeViewItem representing the component node.</returns>
     private TreeViewItem GetOrCreateComponentNode(TreeViewItem vehicleNode, MAVLink.MAVLinkMessage message)
     {
@@ -470,7 +482,7 @@ public partial class MainWindow : Window
     /// Updates the TreeView for the given MAVLink message.
     /// </summary>
     /// <param name="message">The MAVLink message.</param>
-    /// <param name="rate">The message rate.</param>
+    /// <param="rate">The message rate.</param>
     private void UpdateTreeViewForMessage(MAVLink.MAVLinkMessage message, double rate)
     {
         try
@@ -512,8 +524,8 @@ public partial class MainWindow : Window
     /// Formats the message header for display in the TreeView.
     /// </summary>
     /// <param name="message">The MAVLink message.</param>
-    /// <param name="rate">The message rate.</param>
-    /// <param name="bps">The message bits per second.</param>
+    /// <param="rate">The message rate.</param>
+    /// <param="bps">The message bits per second.</param>
     /// <returns>The formatted message header.</returns>
     private string FormatMessageHeader(MAVLink.MAVLinkMessage message, double rate, double bps)
     {
@@ -527,11 +539,11 @@ public partial class MainWindow : Window
     /// <summary>
     /// Updates the color of a TreeView node.
     /// </summary>
-    /// <param name="node">The TreeView node.</param>
-    /// <param name="sysid">The system ID.</param>
-    /// <param name="compid">The component ID.</param>
-    /// <param name="msgid">The message ID.</param>
-    /// <param name="rate">The message rate.</param>
+    /// <param="node">The TreeView node.</param>
+    /// <param="sysid">The system ID.</param>
+    /// <param="compid">The component ID.</param>
+    /// <param="msgid">The message ID.</param>
+    /// <param="rate">The message rate.</param>
     private void UpdateNodeColor(TreeViewItem node, byte sysid, byte compid, uint msgid, double rate)
     {
         // Mesaj için benzersiz bir anahtar oluştur
@@ -604,8 +616,8 @@ public partial class MainWindow : Window
     /// <summary>
     /// Handles the tick event of the main timer.
     /// </summary>
-    /// <param name="sender">The event sender.</param>
-    /// <param name="e">The event arguments.</param>
+    /// <param="sender">The event sender.</param>
+    /// <param="e">The event arguments.</param>
     private void Timer_Tick(object sender, EventArgs e)
     {
         UpdateStatistics();
@@ -614,7 +626,7 @@ public partial class MainWindow : Window
     /// <summary>
     /// Updates the UI state based on the connection status.
     /// </summary>
-    /// <param name="isConnected">Indicates whether the connection is active.</param>
+    /// <param="isConnected">Indicates whether the connection is active.</param>
     private void UpdateUIState(bool isConnected)
     {
         ConnectionTypeComboBox.IsEnabled = !isConnected;
@@ -749,8 +761,8 @@ public partial class MainWindow : Window
     /// <summary>
     /// Handles the selection changed event of the TreeView.
     /// </summary>
-    /// <param name="sender">The event sender.</param>
-    /// <param name="e">The event arguments.</param>
+    /// <param="sender">The event sender.</param>
+    /// <param="e">The event arguments.</param>
     private void TreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
         try
@@ -825,8 +837,8 @@ public partial class MainWindow : Window
     /// <summary>
     /// Handles the selection changed event of the ConnectionTypeComboBox.
     /// </summary>
-    /// <param name="sender">The event sender.</param>
-    /// <param name="e">The event arguments.</param>
+    /// <param="sender">The event sender.</param>
+    /// <param="e">The event arguments.</param>
     private void ConnectionTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (ConnectionTypeComboBox.SelectedItem is string selectedType)
@@ -839,14 +851,28 @@ public partial class MainWindow : Window
     /// <summary>
     /// Handles the click event of the Reset button.
     /// </summary>
-    /// <param name="sender">The event sender.</param>
-    /// <param name="e">The event arguments.</param>
+    /// <param="sender">The event sender.</param>
+    /// <param="e">The event arguments.</param>
     private void ResetButton_Click(object sender, RoutedEventArgs e)
     {
         try
         {
             lock (_treeUpdateLock)
             {
+                // Tüm ikincil tabları kapat
+                var tabsToRemove = messageTabControl.Items.Cast<TabItem>()
+                    .Where(tab => tab != defaultTab)
+                    .ToList();
+
+                foreach (var tab in tabsToRemove)
+                {
+                    if (tab.Tag is DispatcherTimer timer)
+                    {
+                        timer.Stop();
+                    }
+                    messageTabControl.Items.Remove(tab);
+                }
+
                 // Geçici olarak yeni mesaj işlemeyi durdur
                 var isConnected = _connectionManager.IsConnected;
 
@@ -901,17 +927,17 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             MessageBox.Show("Reset operation encountered an error but connection is maintained.",
-                           "Reset Warning",
-                           MessageBoxButton.OK,
-                           MessageBoxImage.Information);
+                        "Reset Warning",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
         }
     }
 
     /// <summary>
     /// Handles the closing event of the window.
     /// </summary>
-    /// <param name="sender">The event sender.</param>
-    /// <param name="e">The event arguments.</param>
+    /// <param="sender">The event sender.</param>
+    /// <param="e">The event arguments.</param>
     private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
     {
         _timer.Stop();
@@ -921,9 +947,16 @@ public partial class MainWindow : Window
     /// <summary>
     /// Handles the closing event of the window.
     /// </summary>
-    /// <param name="e">The event arguments.</param>
+    /// <param="e">The event arguments.</param>
     protected override void OnClosing(CancelEventArgs e)
     {
+        foreach (TabItem tab in messageTabControl.Items)
+        {
+            if (tab.Content is MessageDetailsControl control)
+            {
+                control.StopUpdates();
+            }
+        }
         _treeViewUpdateTimer.Stop();
         _detailsUpdateTimer.Stop();
         _isDisposed = true;
@@ -944,8 +977,8 @@ public partial class MainWindow : Window
             return false;
 
         return selectedMsg.msgid == message.msgid &&
-               selectedMsg.sysid == message.sysid &&
-               selectedMsg.compid == message.compid;
+            selectedMsg.sysid == message.sysid &&
+            selectedMsg.compid == message.compid;
     }
 
     /// <summary>
@@ -1048,8 +1081,8 @@ public partial class MainWindow : Window
     /// <summary>
     /// Handles the selection changed event of the UpdateIntervalComboBox.
     /// </summary>
-    /// <param name="sender">The event sender.</param>
-    /// <param name="e">The event arguments.</param>
+    /// <param="sender">The event sender.</param>
+    /// <param="e">The event arguments.</param>
     private void UpdateIntervalComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (UpdateIntervalComboBox.SelectedItem is ComboBoxItem item &&
@@ -1066,6 +1099,15 @@ public partial class MainWindow : Window
             _treeViewUpdateTimer.Interval = TimeSpan.FromMilliseconds(UPDATE_INTERVAL_MS);
             _detailsUpdateTimer.Interval = TimeSpan.FromMilliseconds(UPDATE_INTERVAL_MS);
 
+            // Tüm açık sekmelerin timer'larını güncelle
+            foreach (TabItem tab in messageTabControl.Items)
+            {
+                if (tab.Content is MessageDetailsControl control)
+                {
+                    control.UpdateInterval = UPDATE_INTERVAL_MS;
+                }
+            }
+
             // Zaman damgalarını sıfırla
             _lastTreeViewUpdate = DateTime.Now;
             _lastDetailsUpdate = DateTime.Now;
@@ -1079,18 +1121,430 @@ public partial class MainWindow : Window
     /// <summary>
     /// Handles the source initialized event of the window.
     /// </summary>
-    /// <param name="e">The event arguments.</param>
+    /// <param="e">The event arguments.</param>
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
         fieldsListView.SelectionChanged += FieldsListView_SelectionChanged;
+
+        // TreeView item'larına çift tıklama olayını ekle
+        AddTreeViewItemDoubleClickHandler(treeView1);
+    }
+
+    private void AddTreeViewItemDoubleClickHandler(TreeView treeView)
+    {
+        treeView.MouseRightButtonDown += (s, e) =>
+        {
+            var item = FindClickedItem(e.OriginalSource as DependencyObject);
+            if (item?.DataContext is MAVLink.MAVLinkMessage message)
+            {
+                CreateNewMessageTab(message);
+            }
+        };
+    }
+
+    private TreeViewItem FindClickedItem(DependencyObject source)
+    {
+        while (source != null && !(source is TreeViewItem))
+        {
+            source = VisualTreeHelper.GetParent(source);
+        }
+        return source as TreeViewItem;
+    }
+
+    private void CreateNewMessageTab(MAVLink.MAVLinkMessage message)
+    {
+        var tabName = $"{message.msgtypename} ({message.sysid}:{message.compid})";
+
+        // Check if tab already exists
+        var existingTab = messageTabControl.Items.Cast<TabItem>()
+            .FirstOrDefault(t => t.Header.ToString() == tabName);
+
+        if (existingTab != null)
+        {
+            existingTab.IsSelected = true;
+            return;
+        }
+
+        var newTab = new TabItem { Header = tabName };
+        var detailsControl = new MessageDetailsControl(_mavInspector);
+        detailsControl.SetMessage(message);
+        detailsControl.FieldsSelectedForGraph += OnFieldsSelectedForGraph;
+        detailsControl.UpdateInterval = UPDATE_INTERVAL_MS; // Update interval'i ayarla
+        detailsControl.SelectionChanged += (s, fields) =>
+        {
+            // Herhangi bir sekmede seçim değiştiğinde graph butonunu güncelle
+            UpdateGraphButtonState();
+        };
+
+        newTab.Content = detailsControl;
+        newTab.Tag = detailsControl;
+
+        messageTabControl.Items.Add(newTab);
+        newTab.IsSelected = true;
+    }
+
+    private StackPanel CloneMessageDetailsPanel(MAVLink.MAVLinkMessage message)
+    {
+        var newPanel = new StackPanel { Margin = new Thickness(5) };
+
+        // Header Section
+        var headerBorder = new Border
+        {
+            Background = FindResource("ControlBackground") as Brush,
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(10),
+            Margin = new Thickness(0, 0, 0, 10),
+            BorderBrush = FindResource("BorderColor") as Brush,
+            BorderThickness = new Thickness(1)
+        };
+
+        var headerGrid = new Grid();
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        for (int i = 0; i < 5; i++)
+        {
+            headerGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(28) });
+        }
+
+        // Add header fields (similar to main view)
+        AddHeaderField(headerGrid, 0, 0, "Header:", message.header.ToString());
+        AddHeaderField(headerGrid, 1, 0, "Length:", message.Length.ToString());
+        AddHeaderField(headerGrid, 2, 0, "Sequence:", message.seq.ToString());
+        AddHeaderField(headerGrid, 3, 0, "System ID:", message.sysid.ToString());
+        AddHeaderField(headerGrid, 4, 0, "Component ID:", message.compid.ToString());
+        AddHeaderField(headerGrid, 0, 2, "Message ID:", message.msgid.ToString());
+        AddHeaderField(headerGrid, 1, 2, "Message Type:", message.GetType().Name);
+        AddHeaderField(headerGrid, 2, 2, "Message Type Name:", message.msgtypename);
+        AddHeaderField(headerGrid, 3, 2, "CRC16:", message.crc16.ToString("X4"));
+        AddHeaderField(headerGrid, 4, 2, "MAVLink Version:", message.ismavlink2 ? "Mavlink V2" : "Mavlink V1");
+
+        headerBorder.Child = headerGrid;
+        newPanel.Children.Add(headerBorder);
+
+        // Fields Section Title
+        var fieldsTitle = new TextBlock
+        {
+            Text = "Message Fields",
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(5),
+            Foreground = FindResource("TextColor") as Brush,
+            FontSize = 13
+        };
+        newPanel.Children.Add(fieldsTitle);
+
+        // Fields ListView
+        var newListView = new ListView
+        {
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Margin = new Thickness(2),
+            SelectionMode = SelectionMode.Extended // Çoklu seçime izin ver
+        };
+
+        // Create and apply the GridView with styled columns
+        var gridView = new GridView();
+
+        // Field Column
+        var fieldColumn = new GridViewColumn
+        {
+            Header = "Field",
+            Width = 140,
+            CellTemplate = new DataTemplate
+            {
+                VisualTree = new FrameworkElementFactory(typeof(TextBlock)).With(tb =>
+                {
+                    tb.SetValue(TextBlock.TextProperty, new Binding("Field"));
+                    tb.SetValue(TextBlock.ForegroundProperty, FindResource("TextColor") as Brush);
+                    tb.SetValue(TextBlock.PaddingProperty, new Thickness(0, 10, 0, 0));
+                    tb.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Bottom);
+                })
+            }
+        };
+
+        // Value Column
+        var valueColumn = new GridViewColumn
+        {
+            Header = "Value",
+            Width = 180,
+            CellTemplate = new DataTemplate
+            {
+                VisualTree = new FrameworkElementFactory(typeof(TextBlock)).With(tb =>
+                {
+                    tb.SetValue(TextBlock.TextProperty, new Binding("Value"));
+                    tb.SetValue(TextBlock.ForegroundProperty, FindResource("TextColor") as Brush);
+                    tb.SetValue(TextBlock.PaddingProperty, new Thickness(0, 10, 0, 0));
+                    tb.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap);
+                    tb.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Bottom);
+                })
+            }
+        };
+
+        // Type Column
+        var typeColumn = new GridViewColumn
+        {
+            Header = "Type",
+            Width = 120,
+            CellTemplate = new DataTemplate
+            {
+                VisualTree = new FrameworkElementFactory(typeof(TextBlock)).With(tb =>
+                {
+                    tb.SetValue(TextBlock.TextProperty, new Binding("Type"));
+                    tb.SetValue(TextBlock.ForegroundProperty, new SolidColorBrush(Color.FromRgb(160, 160, 160)));
+                    tb.SetValue(TextBlock.PaddingProperty, new Thickness(0, 10, 0, 0));
+                    tb.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Bottom);
+                })
+            }
+        };
+
+        // Apply header style to columns
+        var headerStyle = new Style(typeof(GridViewColumnHeader));
+        headerStyle.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
+        headerStyle.Setters.Add(new Setter(Control.ForegroundProperty, new SolidColorBrush(Color.FromRgb(160, 160, 160))));
+        headerStyle.Setters.Add(new Setter(FrameworkElement.HeightProperty, 32d));
+        headerStyle.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(8, 0, 0, 0)));
+        headerStyle.Setters.Add(new Setter(Control.TemplateProperty, CreateHeaderTemplate()));
+
+        fieldColumn.HeaderContainerStyle = headerStyle;
+        valueColumn.HeaderContainerStyle = headerStyle;
+        typeColumn.HeaderContainerStyle = headerStyle;
+
+        // Add columns to GridView
+        gridView.Columns.Add(fieldColumn);
+        gridView.Columns.Add(valueColumn);
+        gridView.Columns.Add(typeColumn);
+        newListView.View = gridView;
+
+        // Apply item container style
+        var itemContainerStyle = new Style(typeof(ListViewItem));
+        itemContainerStyle.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
+        itemContainerStyle.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(0, 0, 0, 1)));
+        itemContainerStyle.Setters.Add(new Setter(Control.BorderBrushProperty, FindResource("BorderColor")));
+        itemContainerStyle.Setters.Add(new Setter(FrameworkElement.MarginProperty, new Thickness(0)));
+        itemContainerStyle.Setters.Add(new Setter(FrameworkElement.HeightProperty, 32d));
+        itemContainerStyle.Setters.Add(new Setter(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Bottom));
+
+        // Add triggers for mouse over and selection
+        var mouseOverTrigger = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
+        mouseOverTrigger.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromRgb(62, 62, 66))));
+        itemContainerStyle.Triggers.Add(mouseOverTrigger);
+
+        var selectedTrigger = new Trigger { Property = ListBoxItem.IsSelectedProperty, Value = true };
+        selectedTrigger.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromRgb(9, 71, 113))));
+        itemContainerStyle.Triggers.Add(selectedTrigger);
+
+        newListView.ItemContainerStyle = itemContainerStyle;
+
+        // Store the message reference in ListView's Tag
+        newListView.Tag = message;
+
+        // Add SelectionChanged handler
+        newListView.SelectionChanged += (s, e) =>
+        {
+            foreach (dynamic item in e.AddedItems)
+            {
+                if (IsNumericType(item.Type.ToString()))
+                {
+                    _selectedFieldsForGraph.Add((
+                        message.sysid,
+                        message.compid,
+                        message.msgid,
+                        item.Field.ToString()
+                    ));
+                }
+            }
+
+            foreach (dynamic item in e.RemovedItems)
+            {
+                _selectedFieldsForGraph.Remove((
+                    message.sysid,
+                    message.compid,
+                    message.msgid,
+                    item.Field.ToString()
+                ));
+            }
+
+            if (_graphButton != null)
+            {
+                _graphButton.IsEnabled = _selectedFieldsForGraph.Count > 0;
+            }
+        };
+
+        // Add ListView to Border with same style as main view
+        var listViewBorder = new Border
+        {
+            Background = FindResource("ControlBackground") as Brush,
+            CornerRadius = new CornerRadius(4),
+            Margin = new Thickness(0, 5, 0, 0),
+            BorderBrush = FindResource("BorderColor") as Brush,
+            BorderThickness = new Thickness(1),
+            Child = newListView
+        };
+
+        newPanel.Children.Add(listViewBorder);
+        newPanel.Tag = newListView;
+
+        UpdateListViewFields(newListView, message);
+
+        return newPanel;
+    }
+
+    private void AddHeaderField(Grid grid, int row, int column, string label, string value)
+    {
+        var labelBlock = new TextBlock
+        {
+            Text = label,
+            Foreground = new SolidColorBrush(Color.FromRgb(160, 160, 160)),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        var valueBlock = new TextBlock
+        {
+            Text = value,
+            Foreground = FindResource("TextColor") as Brush,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        Grid.SetRow(labelBlock, row);
+        Grid.SetColumn(labelBlock, column);
+        Grid.SetRow(valueBlock, row);
+        Grid.SetColumn(valueBlock, column + 1);
+
+        grid.Children.Add(labelBlock);
+        grid.Children.Add(valueBlock);
+    }
+
+    private GridViewColumn CreateGridViewColumn(string header, double width)
+    {
+        // GridView header stilini ana pencereden kopyala
+        var mainGridView = fieldsListView.View as GridView;
+        var mainColumn = mainGridView.Columns.First(c => c.Header.ToString() == header);
+
+        return new GridViewColumn
+        {
+            Header = header,
+            Width = width,
+            HeaderTemplate = mainColumn.HeaderTemplate,
+            CellTemplate = mainColumn.CellTemplate,
+            HeaderContainerStyle = mainColumn.HeaderContainerStyle
+        };
+    }
+
+    private void UpdateListViewFields(ListView listView, MAVLink.MAVLinkMessage message)
+    {
+        // Mevcut seçili öğeleri kaydet
+        var selectedItems = listView.SelectedItems.Cast<dynamic>()
+            .Select(item => item.Field.ToString())
+            .ToList();
+
+        listView.Items.Clear();
+        var fields = message.data.GetType().GetFields();
+        foreach (var field in fields)
+        {
+            var value = field.GetValue(message.data);
+            var typeName = field.FieldType.ToString().Replace("System.", "");
+            var item = new
+            {
+                Field = field.Name,
+                Value = value?.ToString() ?? "null",
+                Type = typeName
+            };
+            listView.Items.Add(item);
+
+            // Eğer bu öğe daha önce seçiliyse, tekrar seç
+            if (selectedItems.Contains(field.Name))
+            {
+                listView.SelectedItems.Add(item);
+            }
+        }
+    }
+
+    private void SetupTabUpdates(TabItem tab, MAVLink.MAVLinkMessage message)
+    {
+        var timer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(UPDATE_INTERVAL_MS)
+        };
+
+        timer.Tick += (s, e) =>
+        {
+            if (tab.IsSelected && _mavInspector.TryGetLatestMessage(message.sysid, message.compid, message.msgid, out var latestMessage))
+            {
+                var scrollViewer = tab.Content as ScrollViewer;
+                var stackPanel = scrollViewer?.Content as StackPanel;
+
+                // Header bilgilerini güncelle
+                if (stackPanel?.Children[0] is Border headerBorder &&
+                    headerBorder.Child is Grid headerGrid)
+                {
+                    UpdateHeaderFields(headerGrid, latestMessage);
+                }
+
+                // Fields listesini güncelle
+                var listView = stackPanel?.Tag as ListView;
+                if (listView != null)
+                {
+                    UpdateListViewFields(listView, latestMessage);
+                }
+            }
+        };
+
+        tab.Tag = timer;
+        timer.Start();
+    }
+
+    private void UpdateHeaderFields(Grid headerGrid, MAVLink.MAVLinkMessage message)
+    {
+        UpdateHeaderValue(headerGrid, 0, 1, message.header.ToString());
+        UpdateHeaderValue(headerGrid, 1, 1, message.Length.ToString());
+        UpdateHeaderValue(headerGrid, 2, 1, message.seq.ToString());
+        UpdateHeaderValue(headerGrid, 3, 1, message.sysid.ToString());
+        UpdateHeaderValue(headerGrid, 4, 1, message.compid.ToString());
+        UpdateHeaderValue(headerGrid, 0, 3, message.msgid.ToString());
+        UpdateHeaderValue(headerGrid, 1, 3, message.GetType().Name);
+        UpdateHeaderValue(headerGrid, 2, 3, message.msgtypename);
+        UpdateHeaderValue(headerGrid, 3, 3, message.crc16.ToString("X4"));
+        UpdateHeaderValue(headerGrid, 4, 3, message.ismavlink2 ? "Mavlink V2" : "Mavlink V1");
+    }
+
+    private void UpdateHeaderValue(Grid grid, int row, int column, string value)
+    {
+        var children = grid.Children.Cast<UIElement>()
+            .Where(x => Grid.GetRow(x) == row && Grid.GetColumn(x) == column)
+            .OfType<TextBlock>()
+            .FirstOrDefault();
+
+        if (children != null)
+        {
+            children.Text = value;
+        }
+    }
+
+    private void CloseTab_Click(object sender, RoutedEventArgs e)
+    {
+        var button = sender as Button;
+        var tabItem = button?.TemplatedParent as TabItem;
+
+        if (tabItem != null && tabItem != defaultTab)
+        {
+            // Stop the update timer
+            if (tabItem.Tag is DispatcherTimer timer)
+            {
+                timer.Stop();
+            }
+
+            messageTabControl.Items.Remove(tabItem);
+        }
     }
 
     /// <summary>
     /// Handles the selection changed event of the fields ListView.
     /// </summary>
-    /// <param name="sender">The event sender.</param>
-    /// <param name="e">The event arguments.</param>
+    /// <param="sender">The event sender.</param>
+    /// <param="e">The event arguments.</param>
     private void FieldsListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         // Birden fazla seçime izin ver
@@ -1152,8 +1606,8 @@ public partial class MainWindow : Window
     /// <summary>
     /// Handles the key down event of the TreeView.
     /// </summary>
-    /// <param name="sender">The event sender.</param>
-    /// <param name="e">The event arguments.</param>
+    /// <param="sender">The event sender.</param>
+    /// <param="e">The event arguments.</param>
     private void TreeView_KeyDown(object sender, KeyEventArgs e)
     {
         if (!char.IsLetterOrDigit((char)KeyInterop.VirtualKeyFromKey(e.Key)))
@@ -1175,7 +1629,7 @@ public partial class MainWindow : Window
     /// <summary>
     /// Searches for the given text in the TreeView.
     /// </summary>
-    /// <param name="searchText">The search text.</param>
+    /// <param="searchText">The search text.</param>
     private void SearchInTreeView(string searchText)
     {
         if (string.IsNullOrEmpty(searchText))
@@ -1202,7 +1656,7 @@ public partial class MainWindow : Window
     /// <summary>
     /// Gets all TreeView items recursively.
     /// </summary>
-    /// <param name="parent">The parent ItemsControl.</param>
+    /// <param="parent">The parent ItemsControl.</param>
     /// <returns>An enumerable of TreeViewItem.</returns>
     private IEnumerable<TreeViewItem> GetAllTreeViewItems(ItemsControl parent)
     {
@@ -1223,8 +1677,8 @@ public partial class MainWindow : Window
     /// <summary>
     /// Handles the key down event of the fields ListView.
     /// </summary>
-    /// <param name="sender">The event sender.</param>
-    /// <param name="e">The event arguments.</param>
+    /// <param="sender">The event sender.</param>
+    /// <param="e">The event arguments.</param>
     private void FieldsListView_KeyDown(object sender, KeyEventArgs e)
     {
         if (!char.IsLetterOrDigit((char)KeyInterop.VirtualKeyFromKey(e.Key)))
@@ -1246,7 +1700,7 @@ public partial class MainWindow : Window
     /// <summary>
     /// Searches for the given text in the fields ListView.
     /// </summary>
-    /// <param name="searchText">The search text.</param>
+    /// <param="searchText">The search text.</param>
     private void SearchInFieldsList(string searchText)
     {
         if (string.IsNullOrEmpty(searchText))
@@ -1341,12 +1795,12 @@ public partial class MainWindow : Window
     private bool IsNumericType(string typeName)
     {
         return typeName.Contains("Int") ||
-               typeName.Contains("Float") ||
-               typeName.Contains("Double") ||
-               typeName.Contains("Decimal") ||
-               typeName.Contains("Single") || // System.Single için ekle
-               typeName == "System.Single" ||
-               typeName == "System.Byte";   // Tam tip adı kontrolü
+            typeName.Contains("Float") ||
+            typeName.Contains("Double") ||
+            typeName.Contains("Decimal") ||
+            typeName.Contains("Single") || // System.Single için ekle
+            typeName == "System.Single" ||
+            typeName == "System.Byte";   // Tam tip adı kontrolü
     }
 
     private void InitializeGraphButton()
@@ -1361,18 +1815,65 @@ public partial class MainWindow : Window
 
     private void GraphButton_Click(object sender, RoutedEventArgs e)
     {
+        var allFieldsToGraph = new List<(byte sysid, byte compid, uint msgid, string field)>();
+
+        // Ana sekmeden seçili alanları ekle
         if (_selectedFieldsForGraph.Count > 0)
         {
-            var graphWindow = new GraphWindow(_mavInspector, _selectedFieldsForGraph);
+            allFieldsToGraph.AddRange(_selectedFieldsForGraph);
+        }
+
+        // Diğer sekmelerden seçili alanları ekle
+        foreach (TabItem tab in messageTabControl.Items)
+        {
+            if (tab.Content is MessageDetailsControl control)
+            {
+                var selectedFields = control.GetSelectedFieldsForGraph();
+                if (selectedFields.Any())
+                {
+                    allFieldsToGraph.AddRange(selectedFields);
+                }
+            }
+        }
+
+        if (allFieldsToGraph.Count > 0)
+        {
+            var graphWindow = new GraphWindow(_mavInspector, allFieldsToGraph);
             graphWindow.Show();
 
             // Graph açıldıktan sonra seçimleri temizle
             _selectedFieldsForGraph.Clear();
             _graphButton!.IsEnabled = false;
 
-            // ListView seçimlerini temizle
+            // Tüm sekmelerdeki seçimleri temizle
+            foreach (TabItem tab in messageTabControl.Items)
+            {
+                if (tab.Content is MessageDetailsControl control)
+                {
+                    control.ClearSelectedFields();
+                }
+            }
+
+            // Ana sekmedeki ListView seçimlerini temizle
             fieldsListView.SelectedItems.Clear();
         }
+    }
+
+    private void UpdateGraphButtonState()
+    {
+        bool hasSelectedFields = _selectedFieldsForGraph.Count > 0;
+
+        // Diğer sekmelerdeki seçimleri kontrol et
+        foreach (TabItem tab in messageTabControl.Items)
+        {
+            if (tab.Content is MessageDetailsControl control && control.HasSelectedFields())
+            {
+                hasSelectedFields = true;
+                break;
+            }
+        }
+
+        _graphButton!.IsEnabled = hasSelectedFields;
     }
 
     /// <summary>
@@ -1421,4 +1922,143 @@ public partial class MainWindow : Window
     {
         return _messageColors.GetOrAdd(messageKey, _ => GenerateMessageColor(rate));
     }
+
+    private void AddGraphFeatures(ListView listView)
+    {
+        listView.SelectionMode = SelectionMode.Extended;
+
+        var contextMenu = new ContextMenu { Style = fieldsListView.ContextMenu?.Style };
+        var graphMenuItem = new MenuItem
+        {
+            Header = "Graph It",
+            Style = fieldsListView.ContextMenu?.Items[0] is MenuItem mainMenuItem ?
+                   mainMenuItem.Style :
+                   Application.Current.FindResource("ModernMenuItem") as Style
+        };
+
+        graphMenuItem.Click += (s, e) => HandleGraphMenuItem_Click(listView);
+        contextMenu.Items.Add(graphMenuItem);
+        listView.ContextMenu = contextMenu;
+
+        // Seçim değişikliği olayını ekle
+        listView.SelectionChanged += (s, e) => HandleListViewSelectionChanged(listView, e);
+    }
+
+    private void HandleGraphMenuItem_Click(ListView listView)
+    {
+        if (listView.SelectedItems.Count == 0) return;
+
+        var fieldsToGraph = new List<(byte sysid, byte compid, uint msgid, string field)>();
+        var invalidFields = new List<string>();
+
+        // Tag'den mesaj bilgisini al
+        var message = listView.Tag as MAVLink.MAVLinkMessage;
+        if (message == null) return;
+
+        foreach (dynamic selectedField in listView.SelectedItems)
+        {
+            if (IsNumericType(selectedField.Type.ToString()))
+            {
+                fieldsToGraph.Add((
+                    message.sysid,
+                    message.compid,
+                    message.msgid,
+                    selectedField.Field.ToString()
+                ));
+            }
+            else
+            {
+                invalidFields.Add($"{selectedField.Field} ({selectedField.Type})");
+            }
+        }
+
+        if (invalidFields.Any())
+        {
+            MessageBox.Show(
+                $"The following fields cannot be graphed because they are not numeric:\n\n{string.Join("\n", invalidFields)}",
+                "Invalid Fields",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+
+        if (fieldsToGraph.Count > 0)
+        {
+            var graphWindow = new GraphWindow(_mavInspector, fieldsToGraph);
+            graphWindow.Show();
+        }
+    }
+
+    private void HandleListViewSelectionChanged(ListView listView, SelectionChangedEventArgs e)
+    {
+        var message = listView.Tag as MAVLink.MAVLinkMessage;
+        if (message == null) return;
+
+        try
+        {
+            foreach (dynamic item in e.AddedItems)
+            {
+                if (IsNumericType(item.Type.ToString()))
+                {
+                    _selectedFieldsForGraph.Add((
+                        message.sysid,
+                        message.compid,
+                        message.msgid,
+                        item.Field.ToString()
+                    ));
+                }
+            }
+
+            foreach (dynamic item in e.RemovedItems)
+            {
+                _selectedFieldsForGraph.Remove((
+                    message.sysid,
+                    message.compid,
+                    message.msgid,
+                    item.Field.ToString()
+                ));
+            }
+
+            // Graph butonunu güncelle
+            if (_graphButton != null)
+            {
+                _graphButton.IsEnabled = _selectedFieldsForGraph.Count > 0;
+            }
+        }
+        catch (Exception ex)
+        {
+            // Hata durumunda sessizce devam et
+        }
+    }
+
+    private ControlTemplate CreateHeaderTemplate()
+    {
+        var template = new ControlTemplate(typeof(GridViewColumnHeader));
+
+        var border = new FrameworkElementFactory(typeof(Border));
+        border.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Control.BackgroundProperty));
+        border.SetValue(Border.BorderBrushProperty, FindResource("BorderColor"));
+        border.SetValue(Border.BorderThicknessProperty, new Thickness(0, 0, 0, 1));
+        border.SetValue(Border.PaddingProperty, new TemplateBindingExtension(Control.PaddingProperty));
+        var textBlock = new FrameworkElementFactory(typeof(TextBlock));
+        textBlock.SetValue(TextBlock.TextProperty, new TemplateBindingExtension(ContentControl.ContentProperty));
+        textBlock.SetValue(TextBlock.ForegroundProperty, new TemplateBindingExtension(Control.ForegroundProperty));
+        textBlock.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
+        textBlock.SetValue(TextBlock.FontSizeProperty, 12d);
+
+        border.AppendChild(textBlock);
+        template.VisualTree = border;
+
+        return template;
+    }
+
 } // MainWindow class ends here
+
+// Helper extension method for cleaner FrameworkElementFactory configuration
+public static class FrameworkElementFactoryExtensions
+{
+    public static FrameworkElementFactory With(this FrameworkElementFactory factory, Action<FrameworkElementFactory> configure)
+    {
+        configure(factory);
+        return factory;
+    }
+}

@@ -882,5 +882,48 @@
 
         <!-- Global ScrollViewer Style -->
         <Style TargetType="{x:Type ScrollViewer}" BasedOn="{StaticResource ModernScrollViewer}"/>
+
+        <!-- ListView Cell Style -->
+        <Style x:Key="ListViewCellStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextColor}"/>
+            <Setter Property="Padding" Value="0,10,0,0"/>
+            <Setter Property="VerticalAlignment" Value="Bottom"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+
+        <!-- ListView Type Cell Style -->
+        <Style x:Key="ListViewTypeCellStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#A0A0A0"/>
+            <Setter Property="Padding" Value="0,10,0,0"/>
+            <Setter Property="VerticalAlignment" Value="Bottom"/>
+        </Style>
+
+        <!-- GridView Column Header Style -->
+        <Style x:Key="GridViewColumnHeaderStyle" TargetType="GridViewColumnHeader">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#A0A0A0"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Padding" Value="8,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="GridViewColumnHeader">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{StaticResource BorderColor}"
+                                BorderThickness="0,0,0,1"
+                                Padding="{TemplateBinding Padding}">
+                            <TextBlock Text="{TemplateBinding Content}"
+                                     Foreground="{TemplateBinding Foreground}"
+                                     VerticalAlignment="Center"
+                                     FontSize="12"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#3E3E42"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </Application.Resources>
 </Application>
