@@ -132,7 +132,7 @@
               HorizontalAlignment="Center"
               VerticalAlignment="Stretch"
               ResizeDirection="Columns"
-              ShowsPreview="True">
+              ShowsPreview="True" >
                 <GridSplitter.Template>
                     <ControlTemplate TargetType="GridSplitter">
                         <Border Width="14" 
@@ -165,13 +165,16 @@
 
 
             <!-- Message Details güncellemesi -->
-            <GroupBox Grid.Column="2" Header="Message Details" 
-                     Style="{StaticResource ModernGroupBox}">
+            <GroupBox Grid.Column="2" Header="Message Details" Style="{StaticResource ModernGroupBox}">
                 <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Visible" CanContentScroll="True">
                     <StackPanel Margin="5">
                         <!-- Header Section -->
-                        <Border Background="{StaticResource BorderColor}" 
-                    CornerRadius="4" Padding="10" Margin="0,0,0,10">
+                        <Border Background="{StaticResource ControlBackground}" 
+                                CornerRadius="4" 
+                                Padding="10" 
+                                Margin="0,0,0,10"
+                                BorderBrush="{StaticResource BorderColor}"
+                                BorderThickness="1">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="120"/>
@@ -186,58 +189,45 @@
                                     <RowDefinition Height="28"/>
                                     <RowDefinition Height="28"/>
                                 </Grid.RowDefinitions>
+                                <!-- Header -->
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Header:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" x:Name="headerText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
 
-                                <!-- Left Column - Existing Fields -->
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Message Type:" 
-                             Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="0" Grid.Column="1" x:Name="msgTypeText"
-                             Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+                                <!-- Length -->
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Length:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="1" Grid.Column="1" x:Name="lengthText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
 
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="System ID:" 
-                             Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="1" Grid.Column="1" x:Name="sysidText"
-                             Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+                                <!-- Sequence -->
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Sequence:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" x:Name="seqText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
 
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Component ID:" 
-                             Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="2" Grid.Column="1" x:Name="compidText"
-                             Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+                                <!-- System ID -->
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="System ID:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="3" Grid.Column="1" x:Name="sysidText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
 
-                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Message ID:" 
-                             Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="3" Grid.Column="1" x:Name="msgidText"
-                             Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+                                <!-- Component ID -->
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Component ID:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="4" Grid.Column="1" x:Name="compidText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
 
-                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Length:" 
-                             Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="4" Grid.Column="1" x:Name="lengthText"
-                             Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+                                <!-- Message ID -->
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="Message ID:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="0" Grid.Column="3" x:Name="msgidText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
 
-                                <!-- Right Column - New Fields -->
-                                <TextBlock Grid.Row="0" Grid.Column="2" Text="Message Type Name:" 
-                             Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="0" Grid.Column="3" x:Name="msgTypeNameText"
-                             Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+                                <!-- Message Type -->
+                                <TextBlock Grid.Row="1" Grid.Column="2" Text="Message Type:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="1" Grid.Column="3" x:Name="msgTypeText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
 
-                                <TextBlock Grid.Row="1" Grid.Column="2" Text="CRC16:" 
-                             Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="1" Grid.Column="3" x:Name="crc16Text"
-                             Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+                                <!-- Message Type Name -->
+                                <TextBlock Grid.Row="2" Grid.Column="2" Text="Message Type Name:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="2" Grid.Column="3" x:Name="msgTypeNameText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
 
-                                <TextBlock Grid.Row="2" Grid.Column="2" Text="Sequence:" 
-                             Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="2" Grid.Column="3" x:Name="seqText"
-                             Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+                                <!-- CRC16 -->
+                                <TextBlock Grid.Row="3" Grid.Column="2" Text="CRC16:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="3" Grid.Column="3" x:Name="crc16Text" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
 
-                                <TextBlock Grid.Row="3" Grid.Column="2" Text="Header:" 
-                             Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="3" Grid.Column="3" x:Name="headerText"
-                             Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
-
-                                <TextBlock Grid.Row="4" Grid.Column="2" Text="MAVLink Version:" 
-                             Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="4" Grid.Column="3" x:Name="isMavlink2Text"
-                             Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+                                <!-- MAVLink Version -->
+                                <TextBlock Grid.Row="4" Grid.Column="2" Text="MAVLink Version:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="4" Grid.Column="3" x:Name="isMavlink2Text" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
                             </Grid>
                         </Border>
 
@@ -248,18 +238,15 @@
            Foreground="{StaticResource TextColor}"
            FontSize="13"/>
 
-                        <Border Background="Transparent" 
+                        <Border Background="{StaticResource ControlBackground}" 
         CornerRadius="4" 
         Margin="0,5"
-        BorderBrush="{StaticResource PanelBackground}"
+        BorderBrush="{StaticResource BorderColor}"
         BorderThickness="1">
                             <ListView x:Name="fieldsListView" 
               Background="Transparent"
-              BorderThickness="0"
-              Margin="2"
-              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-              ScrollViewer.VerticalScrollBarVisibility="Auto"
-                      SelectionMode="Multiple">
+              BorderThickness="0.4"
+              Margin="2">
                                 <ListView.Resources>
                                     <!-- GridViewColumnHeader Style -->
                                     <Style TargetType="GridViewColumnHeader">
@@ -326,7 +313,8 @@
                                 <ListView.ItemContainerStyle>
                                     <Style TargetType="ListViewItem">
                                         <Setter Property="Background" Value="Transparent"/>
-                                        <Setter Property="BorderThickness" Value="0"/>
+                                        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource BorderColor}"/>
                                         <Setter Property="Margin" Value="0"/>
                                         <Setter Property="Height" Value="32"/>
                                         <Setter Property="VerticalAlignment" Value="Bottom"/>
@@ -336,6 +324,9 @@
                                             </Trigger>
                                             <Trigger Property="IsSelected" Value="True">
                                                 <Setter Property="Background" Value="#094771"/>
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="False">
+                                                <Setter Property="BorderThickness" Value="0,0,0,1"/>
                                             </Trigger>
                                         </Style.Triggers>
                                     </Style>
