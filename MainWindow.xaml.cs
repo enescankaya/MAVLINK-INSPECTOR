@@ -11,6 +11,7 @@ using System.Windows.Input;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using MavlinkInspector.Controls;
+using System.Text.RegularExpressions;
 
 namespace MavlinkInspector;
 
@@ -28,6 +29,22 @@ public enum UpdateInterval
     Normal = 200,
     Slow = 500,
     VerySlow = 1000
+}
+
+public enum SortOrder
+{
+    Name,
+    Hz,
+    Bps
+}
+
+public class MessageRateRange
+{
+    public double Min { get; set; }
+    public double Max { get; set; }
+    public int Priority { get; set; }
+
+    public bool IsInRange(double value) => value >= Min && value < Max;
 }
 
 public partial class MainWindow : Window
@@ -85,6 +102,19 @@ public partial class MainWindow : Window
     private List<MAVLink.MAVLinkMessage> _selectedMessages = new();
 
     private HashSet<(byte sysid, byte compid, uint msgid, string field)> _selectedFieldsForGraph = new();
+
+    private SortOrder currentSortOrder = SortOrder.Name;
+    private readonly List<MessageRateRange> rateRanges = new()
+    {
+        new MessageRateRange { Min = 100, Max = double.MaxValue, Priority = 0 },
+        new MessageRateRange { Min = 50, Max = 100, Priority = 1 },
+        new MessageRateRange { Min = 20, Max = 50, Priority = 2 },
+        new MessageRateRange { Min = 10, Max = 20, Priority = 3 },
+        new MessageRateRange { Min = 5, Max = 10, Priority = 4 },
+        new MessageRateRange { Min = 1, Max = 5, Priority = 5 },
+        new MessageRateRange { Min = 0.1, Max = 1, Priority = 6 },
+        new MessageRateRange { Min = 0, Max = 0.1, Priority = 7 }
+    };
 
     private class MessageUpdateInfo
     {
@@ -458,7 +488,7 @@ public partial class MainWindow : Window
     /// <summary>
     /// Gets or creates a vehicle node in the TreeView.
     /// </summary>
-    /// <param name="sysid">The system ID.</param>
+    /// <param="sysid">The system ID.</param>
     /// <returns>The TreeViewItem representing the vehicle node.</returns>
     private TreeViewItem GetOrCreateVehicleNode(byte sysid)
     {
@@ -469,7 +499,7 @@ public partial class MainWindow : Window
     /// <summary>
     /// Gets or creates a component node in the TreeView.
     /// </summary>
-    /// <param name="vehicleNode">The vehicle node.</param>
+    /// <param="vehicleNode">The vehicle node.</param>
     /// <param="message">The MAVLink message.</param>
     /// <returns>The TreeViewItem representing the component node.</returns>
     private TreeViewItem GetOrCreateComponentNode(TreeViewItem vehicleNode, MAVLink.MAVLinkMessage message)
@@ -491,6 +521,10 @@ public partial class MainWindow : Window
             var messageKey = (uint)((message.sysid << 16) | (message.compid << 8) | message.msgid);
             var bps = _mavInspector.GetBps(message.sysid, message.compid, message.msgid);
             var header = FormatMessageHeader(message, rate, bps);
+
+            // Seçili öğeyi kaydet
+            var selectedItem = treeView1.SelectedItem as TreeViewItem;
+            var selectedMessage = selectedItem?.DataContext as MAVLink.MAVLinkMessage;
 
             var vehicleNode = GetOrCreateVehicleNode(message.sysid);
             var componentNode = GetOrCreateComponentNode(vehicleNode, message);
@@ -514,6 +548,22 @@ public partial class MainWindow : Window
             {
                 UpdateMessageDetails(message);
             }
+
+            if (currentSortOrder != SortOrder.Name)
+            {
+                var treeViewState = new Dictionary<string, bool>();
+                SaveTreeViewState(treeView1, treeViewState);
+
+                SortTreeView();
+
+                // Seçili öğeyi geri yükle
+                if (selectedMessage != null)
+                {
+                    RestoreSelection(selectedMessage);
+                }
+
+                RestoreTreeViewState(treeView1, treeViewState);
+            }
         }
         catch (Exception ex)
         {
@@ -523,7 +573,7 @@ public partial class MainWindow : Window
     /// <summary>
     /// Formats the message header for display in the TreeView.
     /// </summary>
-    /// <param name="message">The MAVLink message.</param>
+    /// <param="message">The MAVLink message.</param>
     /// <param="rate">The message rate.</param>
     /// <param="bps">The message bits per second.</param>
     /// <returns>The formatted message header.</returns>
@@ -567,7 +617,7 @@ public partial class MainWindow : Window
     /// <summary>
     /// Generates a color based on the message rate.
     /// </summary>
-    /// <param name="rate">The message rate.</param>
+    /// <param="rate">The message rate.</param>
     /// <returns>The generated color.</returns>
     private Color GenerateMessageColor(double rate)
     {
@@ -646,7 +696,7 @@ public partial class MainWindow : Window
     /// <summary>
     /// Updates the message details in the UI.
     /// </summary>
-    /// <param name="message">The MAVLink message.</param>
+    /// <param="message">The MAVLink message.</param>
     private void UpdateMessageDetails(MAVLink.MAVLinkMessage message)
     {
         try
@@ -966,7 +1016,7 @@ public partial class MainWindow : Window
     /// <summary>
     /// Determines if the given message is the currently selected message.
     /// </summary>
-    /// <param name="message">The MAVLink message.</param>
+    /// <param="message">The MAVLink message.</param>
     /// <returns>True if the message is selected, otherwise false.</returns>
     private bool IsSelectedMessage(MAVLink.MAVLinkMessage message)
     {
@@ -1129,6 +1179,9 @@ public partial class MainWindow : Window
 
         // TreeView item'larına çift tıklama olayını ekle
         AddTreeViewItemDoubleClickHandler(treeView1);
+
+        // TabControl'e orta tıklama olayını ekle
+        messageTabControl.MouseDown += TabControl_MouseDown;
     }
 
     private void AddTreeViewItemDoubleClickHandler(TreeView treeView)
@@ -1538,6 +1591,37 @@ public partial class MainWindow : Window
 
             messageTabControl.Items.Remove(tabItem);
         }
+    }
+
+    private void TabControl_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.MiddleButton == MouseButtonState.Pressed)
+        {
+            var tabItem = GetTabItem(e.OriginalSource as DependencyObject);
+            if (tabItem != null && tabItem != defaultTab)
+            {
+                CloseTab(tabItem);
+                e.Handled = true;
+            }
+        }
+    }
+
+    private TabItem GetTabItem(DependencyObject source)
+    {
+        while (source != null && !(source is TabItem))
+        {
+            source = VisualTreeHelper.GetParent(source);
+        }
+        return source as TabItem;
+    }
+
+    private void CloseTab(TabItem tab)
+    {
+        if (tab.Tag is DispatcherTimer timer)
+        {
+            timer.Stop();
+        }
+        messageTabControl.Items.Remove(tab);
     }
 
     /// <summary>
@@ -2049,6 +2133,264 @@ public partial class MainWindow : Window
         template.VisualTree = border;
 
         return template;
+    }
+
+    private void SortByName_Click(object sender, RoutedEventArgs e)
+    {
+        currentSortOrder = SortOrder.Name;
+        SortTreeView();
+    }
+
+    private void SortByHz_Click(object sender, RoutedEventArgs e)
+    {
+        currentSortOrder = SortOrder.Hz;
+        SortTreeView();
+    }
+
+    private void SortByBps_Click(object sender, RoutedEventArgs e)
+    {
+        currentSortOrder = SortOrder.Bps;
+        SortTreeView();
+    }
+
+    private void SortTreeView()
+    {
+        // Mevcut seçimi ve ağaç durumunu kaydet
+        var selectedMessage = treeView1.SelectedItem as TreeViewItem;
+        var treeViewState = new Dictionary<string, bool>();
+        SaveTreeViewState(treeView1, treeViewState);
+
+        // Her bir Vehicle ve Component node'u için sıralama yap
+        foreach (TreeViewItem vehicleNode in treeView1.Items)
+        {
+            vehicleNode.IsExpanded = treeViewState.GetValueOrDefault(GetItemIdentifier(vehicleNode), vehicleNode.IsExpanded);
+
+            foreach (TreeViewItem componentNode in vehicleNode.Items)
+            {
+                componentNode.IsExpanded = treeViewState.GetValueOrDefault(GetItemIdentifier(componentNode), componentNode.IsExpanded);
+
+                var messages = componentNode.Items.Cast<TreeViewItem>().ToList();
+                var sortedMessages = SortMessages(messages);
+
+                componentNode.Items.Clear();
+                foreach (var message in sortedMessages)
+                {
+                    componentNode.Items.Add(message);
+                }
+            }
+        }
+    }
+
+    private List<TreeViewItem> SortMessages(List<TreeViewItem> messages)
+    {
+        // Seçili öğeyi kaydet
+        var selectedMessage = treeView1.SelectedItem as TreeViewItem;
+
+        var sortedMessages = messages
+            .GroupBy(item =>
+            {
+                var header = (item.Header as StackPanel)?.Children[1] as TextBlock;
+                if (header == null) return -1;
+
+                var text = header.Text;
+                double value = currentSortOrder switch
+                {
+                    SortOrder.Hz => ExtractRate(text),
+                    SortOrder.Bps => ExtractBps(text),
+                    _ => 0
+                };
+                return GetRangeIndex(value);
+            })
+            .OrderByDescending(g => g.Key) // Grupları sırala
+            .SelectMany(group =>
+                // Her grup içindeki öğeleri adlarına göre sırala
+                group.OrderBy(item =>
+                {
+                    var header = (item.Header as StackPanel)?.Children[1] as TextBlock;
+                    return ExtractMessageName(header?.Text ?? string.Empty);
+                })
+            )
+            .ToList();
+
+        // TreeView durumunu kaydet
+        var treeViewState = new Dictionary<string, bool>();
+        SaveTreeViewState(treeView1, treeViewState);
+
+        // Seçili öğeyi tekrar seç
+        if (selectedMessage != null)
+        {
+            foreach (var item in sortedMessages)
+            {
+                if (CompareMessages(item, selectedMessage))
+                {
+                    item.IsSelected = true;
+                    break;
+                }
+            }
+        }
+
+        // TreeView durumunu geri yükle
+        RestoreTreeViewState(treeView1, treeViewState);
+
+        return sortedMessages;
+    }
+
+    // Yeni metod: Değer aralığının indeksini döndürür
+    private int GetRangeIndex(double value)
+    {
+        if (currentSortOrder == SortOrder.Bps)
+        {
+            // BPS için aralıklar
+
+            if (value >= 100_000) return 5;    
+            if (value >= 10_000) return 4;    
+            if (value >= 5_000) return 3;     
+            if (value >= 1_000) return 1;      
+            return 0;                          // < 1 kbps
+        }
+        else // Hz için mevcut aralıklar
+        {
+            if (value >= 100) return 7;
+            if (value >= 50) return 6;
+            if (value >= 20) return 5;
+            if (value >= 10) return 4;
+            if (value >= 5) return 3;
+            if (value >= 1) return 2;
+            if (value >= 0.1) return 1;
+            return 0;
+        }
+    }
+
+    // Yeni metod: İki TreeViewItem'ın mesajlarını karşılaştırır
+    private bool CompareMessages(TreeViewItem item1, TreeViewItem item2)
+    {
+        var msg1 = item1.DataContext as MAVLink.MAVLinkMessage;
+        var msg2 = item2.DataContext as MAVLink.MAVLinkMessage;
+
+        if (msg1 == null || msg2 == null)
+            return false;
+
+        return msg1.sysid == msg2.sysid &&
+               msg1.compid == msg2.compid &&
+               msg1.msgid == msg2.msgid;
+    }
+
+    private double ExtractBps(string text)
+    {
+        try
+        {
+            var match = Regex.Match(text, @"(\d+\.?\d*)\s*(M|k)?bps");
+            if (!match.Success) return 0;
+
+            double value = double.Parse(match.Groups[1].Value);
+            string unit = match.Groups[2].Value.ToLower();
+
+            return unit switch
+            {
+                "m" => value * 1_000_000,
+                "k" => value * 1_000,
+                _ => value
+            };
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    private string ExtractMessageName(string text)
+    {
+        var match = Regex.Match(text, @"^[A-Za-z_]+");
+        return match.Success ? match.Value : text;
+    }
+
+    // ExtractRate metodunu ekle (diğer Extract metodlarının yanına)
+    private double ExtractRate(string text)
+    {
+        var match = Regex.Match(text, @"(\d+\.?\d*)\s*Hz");
+        return match.Success ? double.Parse(match.Groups[1].Value) : 0;
+    }
+
+    // Yardımcı metotlar ekle
+    private void SaveTreeViewState(ItemsControl parent, Dictionary<string, bool> state)
+    {
+        foreach (var item in parent.Items)
+        {
+            if (item is TreeViewItem tvi)
+            {
+                string key = GetItemIdentifier(tvi);
+                state[key] = tvi.IsExpanded;
+
+                if (tvi.HasItems)
+                {
+                    SaveTreeViewState(tvi, state);
+                }
+            }
+        }
+    }
+
+    private void RestoreTreeViewState(ItemsControl parent, Dictionary<string, bool> state)
+    {
+        foreach (var item in parent.Items)
+        {
+            if (item is TreeViewItem tvi)
+            {
+                string key = GetItemIdentifier(tvi);
+                if (state.TryGetValue(key, out bool wasExpanded))
+                {
+                    // TreeViewItem'ın durumunu geri yükle
+                    tvi.IsExpanded = wasExpanded;
+
+                    if (tvi.HasItems)
+                    {
+                        // Alt öğelerin durumunu recursive olarak geri yükle
+                        RestoreTreeViewState(tvi, state);
+                    }
+                }
+            }
+        }
+    }
+
+    private string GetItemIdentifier(TreeViewItem item)
+    {
+        if (item.DataContext is MAVLink.MAVLinkMessage msg)
+        {
+            return $"msg_{msg.sysid}_{msg.compid}_{msg.msgid}";
+        }
+        else if (item.Header is StackPanel sp && sp.Children.Count > 1 && sp.Children[1] is TextBlock tb)
+        {
+            // Vehicle ve Component node'ları için özel tanımlayıcı
+            return $"node_{tb.Text}";
+        }
+        return $"item_{item.GetHashCode()}";
+    }
+
+    private void RestoreSelection(MAVLink.MAVLinkMessage selectedMessage)
+    {
+        if (selectedMessage == null) return;
+
+        foreach (TreeViewItem vehicleNode in treeView1.Items)
+        {
+            foreach (TreeViewItem componentNode in vehicleNode.Items)
+            {
+                var messageItem = componentNode.Items.Cast<TreeViewItem>()
+                    .FirstOrDefault(item =>
+                    {
+                        var msg = item.DataContext as MAVLink.MAVLinkMessage;
+                        return msg != null &&
+                               msg.sysid == selectedMessage.sysid &&
+                               msg.compid == selectedMessage.compid &&
+                               msg.msgid == selectedMessage.msgid;
+                    });
+
+                if (messageItem != null)
+                {
+                    messageItem.IsSelected = true;
+                    // BringIntoView çağrısını kaldırdık
+                    return;
+                }
+            }
+        }
     }
 
 } // MainWindow class ends here

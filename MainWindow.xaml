@@ -104,14 +104,51 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <StackPanel Grid.Column="0">
-                <!-- Yeni bilgi yazısı -->
-                <TextBlock Text="Right-click on a message to open in new tab"
-                          Foreground="#8B949E"
-                          FontSize="12"
-                          Margin="5,0,0,5"
-                          HorizontalAlignment="Left"
-                          FontStyle="Italic"/>
+            <StackPanel Grid.Column="0" Margin="0,0,0,0">
+                <Grid Margin="0,0,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Text="Right-click on a message to open in new tab"
+                              Grid.Column="0"
+                              Foreground="#8B949E"
+                              FontSize="12"
+                              HorizontalAlignment="Left"
+                              FontStyle="Italic"/>
+
+                    <StackPanel Grid.Column="2" 
+                                Orientation="Horizontal" 
+                                HorizontalAlignment="Right">
+                        <TextBlock Text="Sort by:" 
+                                  Foreground="#8B949E"
+                                  FontSize="12"
+                                  VerticalAlignment="Center"
+                                  Margin="0,0,5,0"/>
+                        <Button x:Name="SortByName" 
+                                Content="Name"
+                                Style="{StaticResource ModernButton}"
+                                Height="24" 
+                                Width="60"
+                                Margin="0,0,5,0"
+                                Click="SortByName_Click" Padding="0"/>
+                        <Button x:Name="SortByHz" 
+                                Content="Hz"
+                                Style="{StaticResource ModernButton}"
+                                Height="24" 
+                                Width="60"
+                                Margin="0,0,5,0"
+                                Click="SortByHz_Click" Padding="0"/>
+                        <Button x:Name="SortByBps" 
+                                Content="Bps"
+                                Style="{StaticResource ModernButton}"
+                                Height="24" 
+                                Width="60"
+                                Click="SortByBps_Click" Padding="0"/>
+                    </StackPanel>
+                </Grid>
 
                 <!-- Mevcut TreeView -->
                 <TreeView Name="treeView1"
@@ -119,9 +156,22 @@
                           BorderThickness="1"
                           BorderBrush="{StaticResource BorderColor}"
                           Padding="5"
+                          ScrollViewer.VerticalScrollBarVisibility="Visible"
                           VirtualizingStackPanel.IsVirtualizing="True"
                           VirtualizingStackPanel.VirtualizationMode="Recycling"
-                          SelectedItemChanged="TreeView_SelectedItemChanged" ScrollViewer.HorizontalScrollBarVisibility="Hidden" ScrollViewer.VerticalScrollBarVisibility="Visible">
+                          Height="Auto"
+                          MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Grid}}"
+                          SelectedItemChanged="TreeView_SelectedItemChanged" Margin="0,0,0,50">
+                    <TreeView.Template>
+                        <ControlTemplate TargetType="{x:Type TreeView}">
+                            <ScrollViewer CanContentScroll="True" 
+                                        Focusable="False"
+                                        Padding="{TemplateBinding Padding}"
+                                        VerticalScrollBarVisibility="Visible">
+                                <ItemsPresenter/>
+                            </ScrollViewer>
+                        </ControlTemplate>
+                    </TreeView.Template>
                     <TreeView.Resources>
                         <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" 
                                         Color="#44FFFFFF"/>
