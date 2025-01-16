@@ -12,6 +12,10 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using MavlinkInspector.Controls;
 using System.Text.RegularExpressions;
+using System.Collections.ObjectModel;
+using MavlinkInspector.Services;
+using static MAVLink;
+using System.Reflection;
 
 namespace MavlinkInspector;
 
@@ -125,6 +129,21 @@ public partial class MainWindow : Window
 
     private MessageDetailsControl defaultDetailsControl;
 
+    // Yeni field ekleyin
+    private ObservableCollection<SelectedFieldInfo> selectedFieldsPanelItems;
+
+    public class SelectedFieldInfo
+    {
+        public byte SysId { get; set; }
+        public byte CompId { get; set; }
+        public uint MsgId { get; set; }
+        public string Field { get; set; }
+        public string DisplayText { get; set; }
+    }
+
+    private MAVLink.message_info[] _defaultMessageInfos;
+    private Assembly _loadedCustomDll;
+
     /// <summary>
     /// Initializes a new instance of the MainWindow class.
     /// </summary>
@@ -148,6 +167,9 @@ public partial class MainWindow : Window
         _cleanupTimer.Interval = TimeSpan.FromMilliseconds(CLEANUP_INTERVAL_MS);
         _cleanupTimer.Tick += CleanupTimer_Tick;
         _cleanupTimer.Start();
+
+        selectedFieldsPanelItems = new ObservableCollection<SelectedFieldInfo>();
+        selectedFieldsPanel.ItemsSource = selectedFieldsPanelItems;
     }
 
     private void OnFieldsSelectedForGraph(object? sender, IEnumerable<(byte sysid, byte compid, uint msgid, string field)> fields)
@@ -326,8 +348,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Connection failed: {ex.Message}", "Error",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBoxService.ShowError($"Connection failed: {ex.Message}", this);
             await DisconnectAsync();
         }
     }
@@ -511,7 +532,7 @@ public partial class MainWindow : Window
     /// <summary>
     /// Updates the TreeView for the given MAVLink message.
     /// </summary>
-    /// <param name="message">The MAVLink message.</param>
+    /// <param="message">The MAVLink message.</param>
     /// <param="rate">The message rate.</param>
     private void UpdateTreeViewForMessage(MAVLink.MAVLinkMessage message, double rate)
     {
@@ -976,10 +997,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show("Reset operation encountered an error but connection is maintained.",
-                        "Reset Warning",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
+            MessageBoxService.ShowWarning("Reset operation encountered an error but connection is maintained.", this);
         }
     }
 
@@ -1010,6 +1028,13 @@ public partial class MainWindow : Window
         _treeViewUpdateTimer.Stop();
         _detailsUpdateTimer.Stop();
         _isDisposed = true;
+
+        // Restore default message infos if needed
+        if (_defaultMessageInfos != null)
+        {
+            RestoreDefaultMessageInfos();
+        }
+
         base.OnClosing(e);
     }
 
@@ -1674,6 +1699,9 @@ public partial class MainWindow : Window
 
         // Graph butonunu güncelle
         _graphButton!.IsEnabled = _selectedFieldsForGraph.Count > 0;
+
+        // Panel'i güncelle
+        UpdateSelectedFieldsPanel();
     }
 
     /// <summary>
@@ -1847,11 +1875,8 @@ public partial class MainWindow : Window
 
         if (invalidFields.Any())
         {
-            MessageBox.Show(
-                $"The following fields cannot be graphed because they are not numeric:\n\n{string.Join("\n", invalidFields)}",
-                "Invalid Fields",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+            MessageBoxService.ShowWarning($"The following fields cannot be graphed because they are not numeric:\n\n{string.Join("\n", invalidFields)}",
+ this, "Invalid Fields");
         }
 
         if (fieldsToGraph.Count > 0)
@@ -1925,9 +1950,9 @@ public partial class MainWindow : Window
             var graphWindow = new GraphWindow(_mavInspector, allFieldsToGraph);
             graphWindow.Show();
 
-            // Graph açıldıktan sonra seçimleri temizle
             _selectedFieldsForGraph.Clear();
             _graphButton!.IsEnabled = false;
+            selectedFieldsBorder.Visibility = Visibility.Collapsed;
 
             // Tüm sekmelerdeki seçimleri temizle
             foreach (TabItem tab in messageTabControl.Items)
@@ -2242,10 +2267,10 @@ public partial class MainWindow : Window
         {
             // BPS için aralıklar
 
-            if (value >= 100_000) return 5;    
-            if (value >= 10_000) return 4;    
-            if (value >= 5_000) return 3;     
-            if (value >= 1_000) return 1;      
+            if (value >= 100_000) return 5;
+            if (value >= 10_000) return 4;
+            if (value >= 5_000) return 3;
+            if (value >= 1_000) return 1;
             return 0;                          // < 1 kbps
         }
         else // Hz için mevcut aralıklar
@@ -2390,6 +2415,152 @@ public partial class MainWindow : Window
                     return;
                 }
             }
+        }
+    }
+
+    private void UpdateSelectedFieldsPanel()
+    {
+        selectedFieldsPanelItems.Clear();
+
+        foreach (var field in _selectedFieldsForGraph)
+        {
+            selectedFieldsPanelItems.Add(new SelectedFieldInfo
+            {
+                SysId = field.sysid,
+                CompId = field.compid,
+                MsgId = field.msgid,
+                Field = field.field,
+                DisplayText = $"{GetMessageName(field.msgid)}.{field.field} ({field.sysid}:{field.compid})"
+            });
+        }
+
+        // Panel'i sadece seçili öğe varsa göster
+        selectedFieldsBorder.Visibility = selectedFieldsPanelItems.Count > 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    private string GetMessageName(uint msgid)
+    {
+        if (_currentlyDisplayedMessage?.msgid == msgid)
+            return _currentlyDisplayedMessage.msgtypename;
+        return msgid.ToString();
+    }
+
+    private void RemoveField_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button button && button.CommandParameter is SelectedFieldInfo field)
+        {
+            _selectedFieldsForGraph.Remove((field.SysId, field.CompId, field.MsgId, field.Field));
+            UpdateSelectedFieldsPanel();
+            UpdateGraphButtonState();
+
+            // Son öğe kaldırıldıysa paneli gizle
+            if (_selectedFieldsForGraph.Count == 0)
+            {
+                selectedFieldsBorder.Visibility = Visibility.Collapsed;
+            }
+        }
+    }
+
+    private void ClearAllFields_Click(object sender, RoutedEventArgs e)
+    {
+        _selectedFieldsForGraph.Clear();
+        UpdateSelectedFieldsPanel();
+        UpdateGraphButtonState();
+
+        // Tüm seçimleri kaldır
+        fieldsListView.SelectedItems.Clear();
+        foreach (TabItem tab in messageTabControl.Items)
+        {
+            if (tab.Content is MessageDetailsControl control)
+            {
+                control.ClearSelectedFields();
+            }
+        }
+
+        selectedFieldsBorder.Visibility = Visibility.Collapsed;
+    }
+    private void LoadAssembly(string dllPath)
+    {
+        if (!File.Exists(dllPath))
+        {
+            MessageBoxService.ShowError("NO FILE", this, "Error");
+            return;
+        }
+
+        try
+        {
+            if (dllPath !=string.Empty && Path.GetExtension(dllPath).ToLower() == ".dll")
+            {
+
+                Assembly assembly = Assembly.LoadFile(dllPath);
+                Type[] types = assembly.GetTypes();
+                foreach (var type in types)
+                {
+                    MessageBoxService.ShowError(type.Name,this,"G"); // Bu, türlerin adlarını yazdıracaktır.
+                }
+                var mavlinkType = types.FirstOrDefault(t => t.Name == "MAVLink");
+
+                if (mavlinkType !=null)
+                {
+                    MessageBoxService.ShowError("dosya null değil!", this, "Error");
+                }
+                else
+                {
+                    MessageBoxService.ShowError("dosya null !", this, "Error");
+
+                }
+            }
+            else
+            {
+                MessageBoxService.ShowError("dosya yok !", this, "Error");
+            }
+        }
+        catch(Exception ex) {
+        MessageBoxService.ShowError(ex.Message, this, "Error"); 
+
+        }
+
+    }
+    public string filepath;
+    private void LoadCustomDllButton_Click(object sender, RoutedEventArgs e)
+    {
+        var openFileDialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Filter = "DLL files (*.dll)|*.dll",
+            Title = "Select MAVLink DLL"
+        };
+
+        if (openFileDialog.ShowDialog() == true)
+        {
+            LoadAssembly(openFileDialog.FileName);
+            filepath= openFileDialog.FileName;
+        }
+        else
+        {
+            MessageBoxService.ShowError("No Available File!", this, "Error");
+        }
+    }
+
+    private void RestoreDefaultButton_Click(object sender, RoutedEventArgs e)
+    {
+        RestoreDefaultMessageInfos();
+    }
+
+    private void RestoreDefaultMessageInfos()
+    {
+        if (_defaultMessageInfos != null)
+        {
+            MAVLink.MAVLINK_MESSAGE_INFOS = _defaultMessageInfos;
+            _defaultMessageInfos = null;
+            _loadedCustomDll = null;
+
+            RestoreDefaultButton.IsEnabled = false;
+            LoadCustomDllButton.Content = "Load Custom DLL";
+
+            // Reset view
+            ResetButton_Click(null, null);
         }
     }
 

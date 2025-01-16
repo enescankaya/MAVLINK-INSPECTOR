@@ -15,6 +15,8 @@ using Microsoft.Win32; // SaveFileDialog için
 using System.IO; // File işlemleri için
 using System.Drawing.Imaging; // ImageFormat için
 using System.Windows.Media.Imaging; // RenderTargetBitmap için
+using MavlinkInspector.Services;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace MavlinkInspector
 {
@@ -310,13 +312,13 @@ namespace MavlinkInspector
                         encoder.Save(stream);
                     }
 
-                    MessageBox.Show("Chart saved successfully!", "Success",
-                        MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBoxService.ShowInfo("Chart saved successfully!",this, "Success");
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Error saving chart: {ex.Message}", "Error",
-                        MessageBoxButton.OK, MessageBoxImage.Error);
+
+                    MessageBoxService.ShowError($"Error saving chart:", this, "Error");
+
                 }
             }
         }
@@ -345,7 +347,10 @@ namespace MavlinkInspector
                     writer.WriteLine(string.Join(",", values));
                 }
 
-                MessageBox.Show("Data exported successfully!", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBoxService.ShowSuccess("Data exported successfully!", this, "Success");
+
+
+
             }
         }
 
