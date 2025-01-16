@@ -142,6 +142,7 @@ public partial class MainWindow : Window
     }
 
     private MAVLink.message_info[] _defaultMessageInfos;
+    private MAVLink.message_info[] _uploadedMessageInfos;
     private Assembly _loadedCustomDll;
 
     /// <summary>
@@ -297,7 +298,7 @@ public partial class MainWindow : Window
     /// <summary>
     /// Updates message details if needed.
     /// </summary>
-    /// <param name="message">The MAVLink message.</param>
+    /// <param="message">The MAVLink message.</param>
     private void UpdateMessageDetailsIfNeeded(MAVLink.MAVLinkMessage message)
     {
         if (_mavInspector.TryGetLatestMessage(message.sysid, message.compid, message.msgid, out var latestMessage))
@@ -344,7 +345,7 @@ public partial class MainWindow : Window
             UpdateUIState(true);
             statusConnectionText.Text = "Connected";
 
-            _ = ProcessIncomingDataAsync();
+            //_ = ProcessIncomingDataAsync();
         }
         catch (Exception ex)
         {
@@ -397,7 +398,7 @@ public partial class MainWindow : Window
                         // İşleme için UI thread'e gönder
                         await Dispatcher.InvokeAsync(() =>
                         {
-                            ProcessMessage(packet);
+                            //ProcessMessage(packet);
                         });
 
                         // Başarıyla okunan veriyi buffer'dan kaldır
@@ -426,7 +427,7 @@ public partial class MainWindow : Window
     /// <summary>
     /// Handles incoming MAVLink messages.
     /// </summary>
-    /// <param name="message">The MAVLink message.</param>
+    /// <param="message">The MAVLink message.</param>
     private void HandleMessage(MAVLink.MAVLinkMessage message)
     {
         // GCS trafiği kontrolü
@@ -442,7 +443,7 @@ public partial class MainWindow : Window
     /// <summary>
     /// Processes a MAVLink message.
     /// </summary>
-    /// <param name="message">The MAVLink message.</param>
+    /// <param="message">The MAVLink message.</param>
     private void ProcessMessage(MAVLink.MAVLinkMessage message)
     {
         try
@@ -472,7 +473,7 @@ public partial class MainWindow : Window
     /// <summary>
     /// Updates the UI asynchronously with the given MAVLink message.
     /// </summary>
-    /// <param name="message">The MAVLink message.</param>
+    /// <param="message">The MAVLink message.</param>
     private async Task UpdateUIAsync(MAVLink.MAVLinkMessage message)
     {
         var rate = _mavInspector.GetMessageRate(message.sysid, message.compid, message.msgid);
@@ -2481,49 +2482,83 @@ public partial class MainWindow : Window
 
         selectedFieldsBorder.Visibility = Visibility.Collapsed;
     }
+
     private void LoadAssembly(string dllPath)
     {
-        if (!File.Exists(dllPath))
-        {
-            MessageBoxService.ShowError("NO FILE", this, "Error");
-            return;
-        }
-
         try
         {
-            if (dllPath !=string.Empty && Path.GetExtension(dllPath).ToLower() == ".dll")
+            if (dllPath != string.Empty && Path.GetExtension(dllPath).ToLower() == ".dll")
             {
-
                 Assembly assembly = Assembly.LoadFile(dllPath);
                 Type[] types = assembly.GetTypes();
-                foreach (var type in types)
-                {
-                    MessageBoxService.ShowError(type.Name,this,"G"); // Bu, türlerin adlarını yazdıracaktır.
-                }
-                var mavlinkType = types.FirstOrDefault(t => t.Name == "MAVLink");
 
-                if (mavlinkType !=null)
+                // Backup existing message infos if not already backed up
+                if (_defaultMessageInfos == null)
                 {
-                    MessageBoxService.ShowError("dosya null değil!", this, "Error");
+                    _defaultMessageInfos = MAVLink.MAVLINK_MESSAGE_INFOS.ToArray();
+                }
+
+                var mavlinkType = types.FirstOrDefault(t => t.Name == "MAVLink");
+                if (mavlinkType != null)
+                {
+                    var newMessageInfos = new List<MAVLink.message_info>();
+
+                    // MAVLink sınıfının MAVLINK_MESSAGE_INFOS field'ını bul
+                    var fieldInfo = mavlinkType.GetField("MAVLINK_MESSAGE_INFOS",
+                        BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy);
+
+                    if (fieldInfo != null)
+                    {
+                        // Direkt olarak array'i al
+                        if (fieldInfo.GetValue(null) is Array messageInfos && messageInfos.Length > 0)
+                        {
+                            foreach (dynamic i in messageInfos)
+                            {
+                                newMessageInfos.Add(new MAVLink.message_info(i.msgid, i.name, i.crc, i.minlength, i.length, i.type));
+                            }
+                            // MAVLink.MAVLINK_MESSAGE_INFOS'u yeni array ile güncelle
+                            MAVLink.MAVLINK_MESSAGE_INFOS = newMessageInfos.ToArray();
+
+                            RestoreDefaultButton.IsEnabled = true;
+                            LoadCustomDllButton.Content = "Reload Custom DLL";
+                            ResetButton_Click(null, null);
+
+                            MessageBoxService.ShowInfo(
+                                $"Loaded {messageInfos.Length} custom MAVLink messages successfully\n" +
+                                $"Previous message count: {_defaultMessageInfos.Length}\n" +
+                                $"New message count: {MAVLink.MAVLINK_MESSAGE_INFOS.Length}",
+                                this,
+                                "Success"
+                            );
+                            return;
+                        }
+                    }
+
+                    MessageBoxService.ShowError("Could not find or load MAVLINK_MESSAGE_INFOS from DLL", this);
                 }
                 else
                 {
-                    MessageBoxService.ShowError("dosya null !", this, "Error");
-
+                    MessageBoxService.ShowError("MAVLink class not found in the DLL", this);
                 }
             }
             else
             {
-                MessageBoxService.ShowError("dosya yok !", this, "Error");
+                MessageBoxService.ShowError("Invalid file selected! Please select a .dll file.", this);
             }
         }
-        catch(Exception ex) {
-        MessageBoxService.ShowError(ex.Message, this, "Error"); 
+        catch (Exception ex)
+        {
+            MessageBoxService.ShowError($"Error loading assembly: {ex.Message}", this);
 
+            // Hata durumunda varsayılan mesajlara geri dön
+            if (_defaultMessageInfos != null)
+            {
+                MAVLink.MAVLINK_MESSAGE_INFOS = _defaultMessageInfos;
+            }
+
+            ResetButton_Click(null, null);
         }
-
     }
-    public string filepath;
     private void LoadCustomDllButton_Click(object sender, RoutedEventArgs e)
     {
         var openFileDialog = new Microsoft.Win32.OpenFileDialog
@@ -2535,7 +2570,6 @@ public partial class MainWindow : Window
         if (openFileDialog.ShowDialog() == true)
         {
             LoadAssembly(openFileDialog.FileName);
-            filepath= openFileDialog.FileName;
         }
         else
         {
