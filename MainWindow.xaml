@@ -74,7 +74,7 @@
             <GroupBox Header="Message Definitions" Style="{StaticResource ModernGroupBox}">
                 <StackPanel Orientation="Horizontal">
                     <Button Name="LoadCustomDllButton" 
-                            Content="Load Custom DLL" 
+                            Content="Load DLL" 
                             Width="120" 
                             Margin="5"
                             Style="{StaticResource ModernButton}"
@@ -216,7 +216,9 @@
                                                 BorderBrush="{StaticResource BorderColor}"
                                                 BorderThickness="1"
                                                 CornerRadius="4"
-                                                Margin="2">
+                                                Margin="2"
+                                                Tag= "{Binding}"
+                                                MouseDown="SelectedField_MouseDown">
                                             <DockPanel Margin="5,2">
                                                 <Button DockPanel.Dock="Right"
                                                         Content="✕"

@@ -14,6 +14,7 @@ using MavlinkInspector.Controls;
 using System.Text.RegularExpressions;
 using System.Collections.ObjectModel;
 using MavlinkInspector.Services;
+
 using static MAVLink;
 using System.Reflection;
 
@@ -704,6 +705,25 @@ public partial class MainWindow : Window
         ConnectionTypeComboBox.IsEnabled = !isConnected;
         SerialPanel.IsEnabled = !isConnected;
         NetworkPanel.IsEnabled = !isConnected;
+
+        // Update the appearance of disabled controls
+        UpdateControlAppearance(ConnectionTypeComboBox);
+        UpdateControlAppearance(PortComboBox);
+        UpdateControlAppearance(BaudRateComboBox);
+        UpdateControlAppearance(IpAddressTextBox);
+        UpdateControlAppearance(PortTextBox);
+    }
+
+    private void UpdateControlAppearance(Control control)
+    {
+        if (control.IsEnabled)
+        {
+            control.Opacity = 1.0;
+        }
+        else
+        {
+            control.Opacity = 0.5;
+        }
     }
 
     /// <summary>
@@ -760,6 +780,7 @@ public partial class MainWindow : Window
                     msgidText.Text = message.msgid.ToString();
                     lengthText.Text = message.Length.ToString();
                     msgTypeNameText.Text = message.msgtypename;
+                    defaultTab.Header = message.msgtypename;
                     crc16Text.Text = message.crc16.ToString("X4");
                     seqText.Text = message.seq.ToString();
                     headerText.Text = message.header.ToString();
@@ -968,6 +989,7 @@ public partial class MainWindow : Window
                     isMavlink2Text.Text = string.Empty;
                     fieldsListView.Items.Clear(); statusMessagesText.Text = "Messages: 0";
                     statusRateText.Text = "Rate: 0 msg/s";
+                    defaultTab.Header = "Message Details";
                 });
 
                 // Sayaçları sıfırla
@@ -2418,21 +2440,42 @@ public partial class MainWindow : Window
             }
         }
     }
+    private string GetMessageName(uint msgid)
+    {
+        // Önce mavlink inspector'dan mesajı almaya çalış
+        var messages = _mavInspector.GetPacketMessages();
+        var message = messages.FirstOrDefault(m => m.msgid == msgid);
+        if (message != null)
+        {
+            return message.msgtypename;
+        }
 
+        // Eğer aktif mesaj bulunamazsa, MAVLINK_MESSAGE_INFOS'dan bul
+        var messageInfo = MAVLink.MAVLINK_MESSAGE_INFOS.FirstOrDefault(info => info.msgid == msgid);
+        return messageInfo.name;
+    }
     private void UpdateSelectedFieldsPanel()
     {
         selectedFieldsPanelItems.Clear();
 
         foreach (var field in _selectedFieldsForGraph)
         {
-            selectedFieldsPanelItems.Add(new SelectedFieldInfo
+            var messageName = GetMessageName(field.msgid);
+            var fieldInfo = new SelectedFieldInfo
             {
                 SysId = field.sysid,
                 CompId = field.compid,
                 MsgId = field.msgid,
                 Field = field.field,
-                DisplayText = $"{GetMessageName(field.msgid)}.{field.field} ({field.sysid}:{field.compid})"
-            });
+                DisplayText = $"{messageName}.{field.field} ({field.sysid}:{field.compid})"
+            };
+
+            // Add mouse wheel click handler
+            var border = new Border();
+            border.MouseDown += SelectedField_MouseDown;
+            border.Tag = fieldInfo;
+
+            selectedFieldsPanelItems.Add(fieldInfo);
         }
 
         // Panel'i sadece seçili öğe varsa göster
@@ -2441,11 +2484,24 @@ public partial class MainWindow : Window
             : Visibility.Collapsed;
     }
 
-    private string GetMessageName(uint msgid)
+    private void SelectedField_MouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (_currentlyDisplayedMessage?.msgid == msgid)
-            return _currentlyDisplayedMessage.msgtypename;
-        return msgid.ToString();
+        if (e.MiddleButton == MouseButtonState.Pressed)
+        {
+            if (sender is Border border && border.Tag is SelectedFieldInfo field)
+            {
+                _selectedFieldsForGraph.Remove((field.SysId, field.CompId, field.MsgId, field.Field));
+                UpdateSelectedFieldsPanel();
+                UpdateGraphButtonState();
+
+                // Son öğe kaldırıldıysa paneli gizle
+                if (_selectedFieldsForGraph.Count == 0)
+                {
+                    selectedFieldsBorder.Visibility = Visibility.Collapsed;
+                }
+            }
+            e.Handled = true;
+        }
     }
 
     private void RemoveField_Click(object sender, RoutedEventArgs e)
@@ -2520,7 +2576,7 @@ public partial class MainWindow : Window
                             MAVLink.MAVLINK_MESSAGE_INFOS = newMessageInfos.ToArray();
 
                             RestoreDefaultButton.IsEnabled = true;
-                            LoadCustomDllButton.Content = "Reload Custom DLL";
+                            LoadCustomDllButton.Content = "Reload DLL";
                             ResetButton_Click(null, null);
 
                             MessageBoxService.ShowInfo(
@@ -2591,7 +2647,7 @@ public partial class MainWindow : Window
             _loadedCustomDll = null;
 
             RestoreDefaultButton.IsEnabled = false;
-            LoadCustomDllButton.Content = "Load Custom DLL";
+            LoadCustomDllButton.Content = "Load DLL";
 
             // Reset view
             ResetButton_Click(null, null);

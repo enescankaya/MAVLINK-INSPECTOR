@@ -47,7 +47,7 @@
 
                         <Button x:Name="ClearButton" Content="Clear Data" 
                                 Style="{StaticResource ModernButton}"
-                                Width="100" Height="32" Margin="0,0,10,0" Click="ClearButton_Click"/>
+                                Width="98" Height="32" Margin="0,0,10,0" Click="ClearButton_Click"/>
                     </StackPanel>
 
                     <!-- Gelişmiş Filtreleme Kontrolü -->

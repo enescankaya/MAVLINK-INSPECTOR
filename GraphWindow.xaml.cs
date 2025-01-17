@@ -312,7 +312,7 @@ namespace MavlinkInspector
                         encoder.Save(stream);
                     }
 
-                    MessageBoxService.ShowInfo("Chart saved successfully!",this, "Success");
+                    MessageBoxService.ShowInfo("Chart saved successfully!", this, "Success");
                 }
                 catch (Exception ex)
                 {
