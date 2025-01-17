@@ -120,6 +120,9 @@ namespace MavlinkInspector
         // Add this static property at class level
         public static Func<double, string> ValueFormatter { get; } = (value) => value.ToString("F9");
 
+        // Yeni field ekle
+        private readonly HashSet<string> _focusedSeries = new();
+
         public GraphWindow(PacketInspector<MAVLink.MAVLinkMessage> inspector, IEnumerable<(byte sysid, byte compid, uint msgid, string field)> fields)
         {
             InitializeComponent();
@@ -233,6 +236,9 @@ namespace MavlinkInspector
             // Mouse wheel event handler'ı Preview event'ine bağla
             //Chart.PreviewMouseWheel += Chart_PreviewMouseWheel;
             Chart.MouseDown += Chart_MouseDown;
+
+            // DataGrid selection changed handler'ı ekle
+            StatisticsGrid.SelectionChanged += StatisticsGrid_SelectionChanged;
         }
 
         private void SaveOriginalAxisLimits()
@@ -400,29 +406,23 @@ namespace MavlinkInspector
 
         private void Window_Closed(object sender, EventArgs e)
         {
-            lock (_windowLock)
+            try
             {
-                _activeWindows.Remove(this);
+                _isDisposed = true;
+                _cts.Cancel();
+                lock (_windowLock)
+                {
+                    _activeWindows.Remove(this);
+                }
+
+                _updateTimer?.Stop();
+                _resizeTimer?.Stop();
+
+                CompositionTarget.Rendering -= CompositionTarget_Rendering;
+
+                CleanupResources();
             }
-
-            _isDisposed = true;
-            CompositionTarget.Rendering -= CompositionTarget_Rendering;
-            _updateTimer.Stop();
-            _resizeTimer.Stop();
-
-            // Temizlik işlemleri
-            _seriesCollection.Clear();
-            _valuesByField.Clear();
-            _lastUpdateTime.Clear();
-            _previousValues.Clear();
-            _fieldStats.Clear();
-            _legendItems.Clear();
-
-            var source = PresentationSource.FromVisual(this) as HwndSource;
-            if (source != null)
-            {
-                source.RemoveHook(WndProc);
-            }
+            catch { }
         }
 
         private void CompositionTarget_Rendering(object sender, EventArgs e)
@@ -495,7 +495,6 @@ namespace MavlinkInspector
 
         private async void UpdateTimer_Tick(object? sender, EventArgs e)
         {
-            // Exit immediately if paused or other conditions are met
             if (_isResizing || _isDragging || _isDisposed || _isPaused) return;
 
             try
@@ -556,6 +555,22 @@ namespace MavlinkInspector
                         Chart.UpdateLayout();
                         StatisticsGrid.Items.Refresh();
                     }, DispatcherPriority.Send);
+                }
+
+                // Seçili serilerin scale'ini güncelle
+                if (_focusedSeries.Count > 0)
+                {
+                    var selectedSeries = _seriesCollection
+                        .Cast<LineSeries>()
+                        .Where(s => _focusedSeries.Contains(s.Title));
+
+                    var values = selectedSeries.SelectMany(s => s.Values.Cast<double>());
+                    var minY = values.Min();
+                    var maxY = values.Max();
+                    var padding = (maxY - minY) * 0.1;
+
+                    Chart.AxisY[0].MinValue = minY - padding;
+                    Chart.AxisY[0].MaxValue = maxY + padding;
                 }
 
                 UpdateStatus();
@@ -934,6 +949,80 @@ namespace MavlinkInspector
                 PauseInfoText.Text = _isPaused ? "Graph Paused - Click Middle Mouse Button to Resume" : "Click Middle Mouse Button to Pause";
                 PauseInfoText.Opacity = _isPaused ? 1.0 : 0.6;
                 e.Handled = true;
+            }
+        }
+
+        private void StatisticsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            _focusedSeries.Clear();
+
+            if (StatisticsGrid.SelectedItems.Count > 0)
+            {
+                var selectedSeries = new List<LineSeries>();
+
+                foreach (LegendItem item in StatisticsGrid.SelectedItems)
+                {
+                    var series = _seriesCollection.FirstOrDefault(s => s.Title == item.Title) as LineSeries;
+                    if (series != null)
+                    {
+                        selectedSeries.Add(series);
+                        _focusedSeries.Add(item.Title);
+
+                        // Seçili serileri vurgula
+                        series.StrokeThickness = 3;
+                        series.Opacity = 1;
+                    }
+                }
+
+                // Seçili olmayan serileri sönükleştir
+                foreach (var series in _seriesCollection.Cast<LineSeries>())
+                {
+                    if (!_focusedSeries.Contains(series.Title))
+                    {
+                        series.StrokeThickness = 1;
+                        series.Opacity = 0.3;
+                    }
+                }
+
+                if (selectedSeries.Any())
+                {
+                    var values = selectedSeries.SelectMany(s => s.Values.Cast<double>());
+                    var minY = values.Min();
+                    var maxY = values.Max();
+                    var padding = (maxY - minY) * 0.1;
+
+                    Chart.AxisY[0].MinValue = minY - padding;
+                    Chart.AxisY[0].MaxValue = maxY + padding;
+
+                    AutoScaleCheckbox.IsChecked = false;
+                }
+            }
+            else
+            {
+                // Tüm serileri normal haline getir
+                foreach (var series in _seriesCollection.Cast<LineSeries>())
+                {
+                    series.StrokeThickness = 2;
+                    series.Opacity = 1;
+                }
+
+                // Auto scale durumunu kontrol et
+                if (AutoScaleCheckbox.IsChecked == true)
+                {
+                    Chart.AxisY[0].MinValue = double.NaN;
+                    Chart.AxisY[0].MaxValue = double.NaN;
+                }
+                else
+                {
+                    var allSeries = _seriesCollection.Cast<LineSeries>();
+                    var values = allSeries.SelectMany(s => s.Values.Cast<double>());
+                    var minY = values.Min();
+                    var maxY = values.Max();
+                    var padding = (maxY - minY) * 0.1;
+
+                    Chart.AxisY[0].MinValue = minY - padding;
+                    Chart.AxisY[0].MaxValue = maxY + padding;
+                }
             }
         }
     }

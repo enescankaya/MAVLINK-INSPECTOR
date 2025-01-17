@@ -185,9 +185,7 @@ public partial class MainWindow : Window
     /// </summary>
     private void InitializeUI()
     {
-        ConnectionTypeComboBox.ItemsSource = new[] { "Serial", "TCP", "UDP" };
-        ConnectionTypeComboBox.SelectedIndex = 0;
-
+        // ComboBox'ı elle doldurmayacağız çünkü XAML'da tanımladık
         PortComboBox.ItemsSource = SerialPort.GetPortNames();
         BaudRateComboBox.ItemsSource = new[] { 9600, 19200, 38400, 57600, 115200 };
         BaudRateComboBox.SelectedValue = 57600;
@@ -195,6 +193,8 @@ public partial class MainWindow : Window
         if (PortComboBox.Items.Count > 0)
             PortComboBox.SelectedIndex = 0;
 
+        // Varsayılan olarak GCS UI seçili olsun
+        ConnectionTypeComboBox.SelectedIndex = 0;
     }
 
     /// <summary>
@@ -332,21 +332,34 @@ public partial class MainWindow : Window
     {
         try
         {
-            var parameters = new ConnectionParameters
+            if (ConnectionTypeComboBox.SelectedItem is ComboBoxItem selectedItem)
             {
-                ConnectionType = ConnectionTypeComboBox.SelectedItem.ToString(),
-                Port = PortComboBox.SelectedItem?.ToString(),
-                BaudRate = (int)BaudRateComboBox.SelectedValue,
-                IpAddress = IpAddressTextBox.Text,
-                NetworkPort = int.Parse(PortTextBox.Text)
-            };
+                string selectedType = selectedItem.Content.ToString();
 
-            await _connectionManager.ConnectAsync(parameters);
-            ConnectButton.Content = "Disconnect";
-            UpdateUIState(true);
-            statusConnectionText.Text = "Connected";
+                if (selectedType == "GCS UI")
+                {
+                    // GCS UI seçildiğinde sadece mesaj göster
+                    MessageBoxService.ShowInfo("GCS UI Connection Opened", this);
+                    ConnectButton.Content = "Disconnect";
+                    UpdateUIState(true);
+                    statusConnectionText.Text = "Connected";
+                    return;
+                }
 
-            //_ = ProcessIncomingDataAsync();
+                var parameters = new ConnectionParameters
+                {
+                    ConnectionType = selectedType,
+                    Port = PortComboBox.SelectedItem?.ToString(),
+                    BaudRate = (int?)BaudRateComboBox.SelectedValue ?? 57600,
+                    IpAddress = IpAddressTextBox.Text,
+                    NetworkPort = int.Parse(PortTextBox.Text)
+                };
+
+                await _connectionManager.ConnectAsync(parameters);
+                ConnectButton.Content = "Disconnect";
+                UpdateUIState(true);
+                statusConnectionText.Text = "Connected";
+            }
         }
         catch (Exception ex)
         {
@@ -934,10 +947,28 @@ public partial class MainWindow : Window
     /// <param="e">The event arguments.</param>
     private void ConnectionTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (ConnectionTypeComboBox.SelectedItem is string selectedType)
+        if (ConnectionTypeComboBox.SelectedItem is ComboBoxItem selectedItem)
         {
-            SerialPanel.Visibility = selectedType == "Serial" ? Visibility.Visible : Visibility.Collapsed;
-            NetworkPanel.Visibility = selectedType != "Serial" ? Visibility.Visible : Visibility.Collapsed;
+            string selectedType = selectedItem.Content.ToString();
+
+            // Tüm panelleri gizle
+            SerialPanel.Visibility = Visibility.Collapsed;
+            NetworkPanel.Visibility = Visibility.Collapsed;
+
+            // Seçime göre ilgili paneli göster
+            switch (selectedType)
+            {
+                case "GCS UI":
+                    // GCS UI seçildiğinde hiçbir panel gösterilmeyecek
+                    break;
+                case "Serial":
+                    SerialPanel.Visibility = Visibility.Visible;
+                    break;
+                case "TCP":
+                case "UDP":
+                    NetworkPanel.Visibility = Visibility.Visible;
+                    break;
+            }
         }
     }
 
@@ -2576,7 +2607,7 @@ public partial class MainWindow : Window
                             MAVLink.MAVLINK_MESSAGE_INFOS = newMessageInfos.ToArray();
 
                             RestoreDefaultButton.IsEnabled = true;
-                            LoadCustomDllButton.Content = "Reload DLL";
+                            LoadCustomDllButton.Content = "Reload Custom DLL";
                             ResetButton_Click(null, null);
 
                             MessageBoxService.ShowInfo(
@@ -2647,7 +2678,7 @@ public partial class MainWindow : Window
             _loadedCustomDll = null;
 
             RestoreDefaultButton.IsEnabled = false;
-            LoadCustomDllButton.Content = "Load DLL";
+            LoadCustomDllButton.Content = "Load Custom DLL";
 
             // Reset view
             ResetButton_Click(null, null);

@@ -382,6 +382,12 @@
                                     </Setter.Value>
                                 </Setter>
                             </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="True">
+                                <Setter Property="Opacity" Value="1"/>
+                            </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter Property="Background" Value="{StaticResource PressedColor}" TargetName="border"/>
                                 <Setter Property="RenderTransform">
