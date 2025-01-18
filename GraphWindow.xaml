@@ -211,7 +211,7 @@
                                UseLayoutRounding="True"
                                SnapsToDevicePixels="True"
                                RenderOptions.BitmapScalingMode="HighQuality"
-                               AnimationsSpeed="0">
+                               AnimationsSpeed="0" HorizontalAlignment="Center" Canvas.Top="10" VerticalAlignment="Top">
                 <lvc:CartesianChart.ContextMenu>
                     <ContextMenu Style="{StaticResource ModernContextMenu}">
                         <MenuItem Style="{StaticResource ModernMenuItem}" 

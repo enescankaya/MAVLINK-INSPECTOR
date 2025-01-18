@@ -140,6 +140,7 @@ public partial class MainWindow : Window
         public uint MsgId { get; set; }
         public string Field { get; set; }
         public string DisplayText { get; set; }
+        public TabItem SourceTab { get; set; } // Yeni özellik ekle
     }
 
     private MAVLink.message_info[] _defaultMessageInfos;
@@ -1047,6 +1048,8 @@ public partial class MainWindow : Window
                     // Mevcut bağlantıyı koru, mesaj almaya devam et
                 }
 
+                // Tüm seçimleri temizle
+                ClearAllFields_Click(null, null);
             }
         }
         catch (Exception ex)
@@ -1888,18 +1891,70 @@ public partial class MainWindow : Window
         // Enable multiple selection
         fieldsListView.SelectionMode = SelectionMode.Extended;
 
-        // Add context menu
-        var contextMenu = new ContextMenu();
-        var graphMenuItem = new MenuItem { Header = "Graph It" };
+        // Create context menu with modern style
+        var contextMenu = new ContextMenu { Style = Application.Current.FindResource("ModernContextMenu") as Style };
+
+        var graphMenuItem = new MenuItem
+        {
+            Header = "Graph Selected Fields",
+            Style = Application.Current.FindResource("ModernMenuItem") as Style,
+            Icon = new System.Windows.Shapes.Path
+            {
+                Data = Geometry.Parse("M0,8 L4,4 L8,8 M4,4 L4,12"), // Simple graph icon
+                Stroke = (Brush)Application.Current.FindResource("TextColor"),
+                StrokeThickness = 1.5,
+                Width = 12,
+                Height = 12,
+                Stretch = Stretch.Uniform
+            }
+        };
+
         graphMenuItem.Click += GraphMenuItem_Click;
         contextMenu.Items.Add(graphMenuItem);
+
+        // Add separator
+        contextMenu.Items.Add(new Separator { Style = Application.Current.FindResource("ModernSeparator") as Style });
+
+        // Add "Copy Value" menu item
+        var copyValueMenuItem = new MenuItem
+        {
+            Header = "Copy Value",
+            Style = Application.Current.FindResource("ModernMenuItem") as Style,
+            Icon = new System.Windows.Shapes.Path
+            {
+                Data = Geometry.Parse("M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"),
+                Fill = (Brush)Application.Current.FindResource("TextColor"),
+                Width = 12,
+                Height = 12,
+                Stretch = Stretch.Uniform
+            }
+        };
+
+        copyValueMenuItem.Click += (s, e) =>
+        {
+            if (fieldsListView.SelectedItem is object item)
+            {
+                try
+                {
+                    Clipboard.SetText(item.ToString());
+                }
+                catch { }
+            }
+        };
+
+        contextMenu.Items.Add(copyValueMenuItem);
+
         fieldsListView.ContextMenu = contextMenu;
     }
 
+    // Update the GraphMenuItem_Click method to show a visual feedback
     private void GraphMenuItem_Click(object sender, RoutedEventArgs e)
     {
         if (_selectedMessages.Count == 0 || fieldsListView.SelectedItems.Count == 0)
+        {
+            MessageBoxService.ShowWarning("Please select at least one field to graph.", this);
             return;
+        }
 
         var fieldsToGraph = new List<(byte sysid, byte compid, uint msgid, string field)>();
         var invalidFields = new List<string>();
@@ -1929,8 +1984,11 @@ public partial class MainWindow : Window
 
         if (invalidFields.Any())
         {
-            MessageBoxService.ShowWarning($"The following fields cannot be graphed because they are not numeric:\n\n{string.Join("\n", invalidFields)}",
- this, "Invalid Fields");
+            MessageBoxService.ShowWarning(
+                $"The following fields cannot be graphed because they are not numeric:\n\n{string.Join("\n", invalidFields)}",
+                this,
+                "Invalid Fields"
+            );
         }
 
         if (fieldsToGraph.Count > 0)
@@ -1992,10 +2050,7 @@ public partial class MainWindow : Window
             if (tab.Content is MessageDetailsControl control)
             {
                 var selectedFields = control.GetSelectedFieldsForGraph();
-                if (selectedFields.Any())
-                {
-                    allFieldsToGraph.AddRange(selectedFields);
-                }
+                allFieldsToGraph.AddRange(selectedFields);
             }
         }
 
@@ -2004,21 +2059,8 @@ public partial class MainWindow : Window
             var graphWindow = new GraphWindow(_mavInspector, allFieldsToGraph);
             graphWindow.Show();
 
-            _selectedFieldsForGraph.Clear();
-            _graphButton!.IsEnabled = false;
-            selectedFieldsBorder.Visibility = Visibility.Collapsed;
-
-            // Tüm sekmelerdeki seçimleri temizle
-            foreach (TabItem tab in messageTabControl.Items)
-            {
-                if (tab.Content is MessageDetailsControl control)
-                {
-                    control.ClearSelectedFields();
-                }
-            }
-
-            // Ana sekmedeki ListView seçimlerini temizle
-            fieldsListView.SelectedItems.Clear();
+            // Seçimleri temizleme işlemini kaldır ve sadece Panel'i güncelle
+            UpdateSelectedFieldsPanel();
         }
     }
 
@@ -2101,7 +2143,6 @@ public partial class MainWindow : Window
 
         graphMenuItem.Click += (s, e) => HandleGraphMenuItem_Click(listView);
         contextMenu.Items.Add(graphMenuItem);
-        listView.ContextMenu = contextMenu;
 
         // Seçim değişikliği olayını ekle
         listView.SelectionChanged += (s, e) => HandleListViewSelectionChanged(listView, e);
@@ -2487,32 +2528,66 @@ public partial class MainWindow : Window
     }
     private void UpdateSelectedFieldsPanel()
     {
-        selectedFieldsPanelItems.Clear();
-
-        foreach (var field in _selectedFieldsForGraph)
+        try
         {
-            var messageName = GetMessageName(field.msgid);
-            var fieldInfo = new SelectedFieldInfo
+            selectedFieldsPanelItems.Clear();
+
+            var allFields = new List<SelectedFieldInfo>();
+
+            // Ana tab'dan seçilenleri ekle
+            foreach (var field in _selectedFieldsForGraph)
             {
-                SysId = field.sysid,
-                CompId = field.compid,
-                MsgId = field.msgid,
-                Field = field.field,
-                DisplayText = $"{messageName}.{field.field} ({field.sysid}:{field.compid})"
-            };
+                var messageName = GetMessageName(field.msgid);
+                allFields.Add(new SelectedFieldInfo
+                {
+                    SysId = field.sysid,
+                    CompId = field.compid,
+                    MsgId = field.msgid,
+                    Field = field.field,
+                    DisplayText = $"{messageName}.{field.field} ({field.sysid}:{field.compid})",
+                    SourceTab = defaultTab
+                });
+            }
 
-            // Add mouse wheel click handler
-            var border = new Border();
-            border.MouseDown += SelectedField_MouseDown;
-            border.Tag = fieldInfo;
+            // Diğer tab'lardan seçilenleri ekle
+            foreach (TabItem tab in messageTabControl.Items)
+            {
+                if (tab != defaultTab && tab.Content is MessageDetailsControl control)
+                {
+                    foreach (var field in control.GetSelectedFieldsForGraph())
+                    {
+                        var messageName = GetMessageName(field.msgid);
+                        allFields.Add(new SelectedFieldInfo
+                        {
+                            SysId = field.sysid,
+                            CompId = field.compid,
+                            MsgId = field.msgid,
+                            Field = field.field,
+                            DisplayText = $"{messageName}.{field.field} ({field.sysid}:{field.compid})",
+                            SourceTab = tab
+                        });
+                    }
+                }
+            }
 
-            selectedFieldsPanelItems.Add(fieldInfo);
+            // Tekrarlanan öğeleri filtrele ve ekle
+            foreach (var field in allFields.DistinctBy(f => (f.SysId, f.CompId, f.MsgId, f.Field)))
+            {
+                selectedFieldsPanelItems.Add(field);
+            }
+
+            // Panel görünürlüğünü güncelle
+            selectedFieldsBorder.Visibility = selectedFieldsPanelItems.Count > 0
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
+            // Graph butonunu güncelle
+            UpdateGraphButtonState();
         }
-
-        // Panel'i sadece seçili öğe varsa göster
-        selectedFieldsBorder.Visibility = selectedFieldsPanelItems.Count > 0
-            ? Visibility.Visible
-            : Visibility.Collapsed;
+        catch (Exception)
+        {
+            // Hata durumunda sessizce devam et
+        }
     }
 
     private void SelectedField_MouseDown(object sender, MouseButtonEventArgs e)
@@ -2539,26 +2614,48 @@ public partial class MainWindow : Window
     {
         if (sender is Button button && button.CommandParameter is SelectedFieldInfo field)
         {
-            _selectedFieldsForGraph.Remove((field.SysId, field.CompId, field.MsgId, field.Field));
-            UpdateSelectedFieldsPanel();
-            UpdateGraphButtonState();
-
-            // Son öğe kaldırıldıysa paneli gizle
-            if (_selectedFieldsForGraph.Count == 0)
+            try
             {
-                selectedFieldsBorder.Visibility = Visibility.Collapsed;
+                if (field.SourceTab == defaultTab)
+                {
+                    // Ana tabdan seçilen alanı kaldır
+                    var key = (field.SysId, field.CompId, field.MsgId, field.Field);
+                    _selectedFieldsForGraph.Remove(key);
+
+                    // ListView'dan seçimi kaldır
+                    if (fieldsListView != null)
+                    {
+                        var itemToRemove = fieldsListView.Items.Cast<dynamic>()
+                            .FirstOrDefault(item => item.Field.ToString() == field.Field);
+                        if (itemToRemove != null)
+                        {
+                            fieldsListView.SelectedItems.Remove(itemToRemove);
+                        }
+                    }
+                }
+                else if (field.SourceTab?.Content is MessageDetailsControl control)
+                {
+                    // Diğer tablardan seçilen alanı kaldır
+                    control.RemoveSelectedField(field.SysId, field.CompId, field.MsgId, field.Field);
+                }
+
+                // Paneli güncelle
+                UpdateSelectedFieldsPanel();
+            }
+            catch (Exception)
+            {
+                // Hata durumunda sessizce devam et
             }
         }
     }
 
     private void ClearAllFields_Click(object sender, RoutedEventArgs e)
     {
+        // Ana tab'daki seçimleri temizle
         _selectedFieldsForGraph.Clear();
-        UpdateSelectedFieldsPanel();
-        UpdateGraphButtonState();
-
-        // Tüm seçimleri kaldır
         fieldsListView.SelectedItems.Clear();
+
+        // Diğer tab'lardaki seçimleri temizle
         foreach (TabItem tab in messageTabControl.Items)
         {
             if (tab.Content is MessageDetailsControl control)
@@ -2567,6 +2664,8 @@ public partial class MainWindow : Window
             }
         }
 
+        UpdateSelectedFieldsPanel();
+        UpdateGraphButtonState();
         selectedFieldsBorder.Visibility = Visibility.Collapsed;
     }
 

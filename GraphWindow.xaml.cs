@@ -647,6 +647,7 @@ namespace MavlinkInspector
                 Chart.UpdateLayout();
                 StatisticsGrid.Items.Refresh();
                 UpdateStatus();
+                ResetView_Click(null,null);
             }
             catch (Exception ex)
             {

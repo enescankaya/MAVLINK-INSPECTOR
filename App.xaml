@@ -33,7 +33,7 @@
             </DoubleAnimation>
         </Storyboard>
 
-        <!-- Modern ContextMenu Style - Updated -->
+        <!-- Modern ContextMenu Style -->
         <Style x:Key="ModernContextMenu" TargetType="ContextMenu">
             <Setter Property="Background" Value="{StaticResource PanelBackground}"/>
             <Setter Property="BorderBrush" Value="{StaticResource BorderColor}"/>
@@ -59,7 +59,7 @@
             </Setter>
         </Style>
 
-        <!-- Modern MenuItem Style - Updated -->
+        <!-- Modern MenuItem Style -->
         <Style x:Key="ModernMenuItem" TargetType="MenuItem">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{StaticResource TextColor}"/>
@@ -166,14 +166,12 @@
                 </Setter.Value>
             </Setter>
         </Style>
-
         <!-- Separator Style for Menu -->
         <Style x:Key="ModernSeparator" TargetType="Separator">
             <Setter Property="Height" Value="1"/>
             <Setter Property="Margin" Value="4,4"/>
             <Setter Property="Background" Value="{StaticResource BorderColor}"/>
         </Style>
-
         <!-- Modern CheckBox Style - Updated -->
         <Style x:Key="ModernCheckBox" TargetType="CheckBox">
             <Setter Property="Foreground" Value="{StaticResource TextColor}"/>
