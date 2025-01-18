@@ -591,11 +591,67 @@ namespace MavlinkInspector
 
         private void ClearButton_Click(object sender, RoutedEventArgs e)
         {
-            foreach (var values in _valuesByField.Values)
+            try
             {
-                values.Clear();
+                // Önce seçimleri temizle
+                StatisticsGrid.SelectedItems.Clear();
+                _focusedSeries.Clear();
+
+                // Grafik serilerini normal haline getir
+                foreach (var series in _seriesCollection.Cast<LineSeries>())
+                {
+                    series.StrokeThickness = 2;
+                    series.Opacity = 1;
+                }
+
+                // Verileri temizle
+                foreach (var values in _valuesByField.Values)
+                {
+                    values?.Clear();
+                }
+
+                // İstatistikleri sıfırla
+                foreach (var stats in _fieldStats.Values)
+                {
+                    if (stats != null)
+                    {
+                        stats.Min = 0;
+                        stats.Max = 0;
+                        stats.Sum = 0;
+                        stats.Count = 0;
+                    }
+                }
+
+                // Legend itemları güncelle
+                foreach (var item in _legendItems)
+                {
+                    if (item != null)
+                    {
+                        item.Value = 0;
+                        item.Statistics.Min = 0;
+                        item.Statistics.Max = 0;
+                        item.Statistics.Mean = 0;
+                    }
+                }
+
+                // Önceki değerleri temizle
+                _previousValues.Clear();
+
+                // Eksenleri varsayılan değerlere ayarla
+                Chart.AxisY[0].MinValue = 0;
+                Chart.AxisY[0].MaxValue = 100;
+                Chart.AxisX[0].MinValue = 0;
+                Chart.AxisX[0].MaxValue = 100;
+
+                // UI güncelle
+                Chart.UpdateLayout();
+                StatisticsGrid.Items.Refresh();
+                UpdateStatus();
             }
-            UpdateStatus();
+            catch (Exception ex)
+            {
+                MessageBoxService.ShowError($"Error clearing data: {ex.Message}", this);
+            }
         }
 
         private void UpdateSampleCount()

@@ -230,7 +230,6 @@
                                                         Click="RemoveField_Click"
                                                         CommandParameter="{Binding}"/>
                                                 <Border DockPanel.Dock="Left" 
-                                                        Background="{Binding MessageTypeColor}"
                                                         Width="3" Height="16"
                                                         CornerRadius="2"
                                                         Margin="0,0,5,0"

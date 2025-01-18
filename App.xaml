@@ -473,10 +473,11 @@
                                                     <ColumnDefinition Width="32" />
                                                 </Grid.ColumnDefinitions>
                                                 <ContentPresenter Grid.Column="0"
-                                                                Margin="12,0,0,0"
+                                                                Content="{Binding RelativeSource={RelativeSource AncestorType={x:Type ComboBox}}, Path=SelectionBoxItem}"
+                                                                ContentTemplate="{Binding RelativeSource={RelativeSource AncestorType={x:Type ComboBox}}, Path=SelectionBoxItemTemplate}"
                                                                 HorizontalAlignment="Left"
                                                                 VerticalAlignment="Center"
-                                                                Content="{Binding Content, RelativeSource={RelativeSource AncestorType=ComboBox}}"/>
+                                                                Margin="12,0,0,0"/>
                                                 <Path x:Name="Arrow" Grid.Column="1"
                                                       Fill="{StaticResource TextColor}"
                                                       HorizontalAlignment="Center"
