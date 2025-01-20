@@ -3,19 +3,8 @@ using System.Windows;
 using System.Windows.Media;
 using System.Collections.Concurrent;
 using System.Windows.Threading;
-using System.Collections.Generic;
 
 namespace MavlinkInspector.Controls;
-
-public class SelectedFieldInfo
-{
-    public string TabId { get; set; }
-    public string DisplayText { get; set; }
-    public string Field { get; set; }
-    public byte SysId { get; set; }
-    public byte CompId { get; set; }
-    public uint MsgId { get; set; }
-}
 
 public partial class MessageDetailsControl : UserControl
 {
@@ -24,9 +13,7 @@ public partial class MessageDetailsControl : UserControl
     private readonly DispatcherTimer _updateTimer;
     private readonly ConcurrentDictionary<(byte sysid, byte compid, uint msgid, string field), bool> _selectedFields = new();
     private int _updateInterval;
-    private string _tabId;
     public event EventHandler<bool> SelectionChanged;
-    public event Action<SelectedFieldInfo, bool> FieldSelectionChanged;
 
     public event EventHandler<IEnumerable<(byte sysid, byte compid, uint msgid, string field)>>? FieldsSelectedForGraph;
     public int UpdateInterval
@@ -49,10 +36,21 @@ public partial class MessageDetailsControl : UserControl
 
     public List<(byte sysid, byte compid, uint msgid, string field)> GetSelectedFieldsForGraph()
     {
-        lock (_selectedFields)
+        var fields = new List<(byte sysid, byte compid, uint msgid, string field)>();
+        if (_currentMessage != null && fieldsListView.SelectedItems.Count > 0)
         {
-            return _selectedFields.Keys.ToList();
+            foreach (dynamic item in fieldsListView.SelectedItems)
+            {
+                if (IsNumericType(item.Type.ToString()))
+                {
+                    fields.Add((_currentMessage.sysid,
+                              _currentMessage.compid,
+                              _currentMessage.msgid,
+                              item.Field.ToString()));
+                }
+            }
         }
+        return fields;
     }
 
     public bool HasSelectedFields()
@@ -62,35 +60,7 @@ public partial class MessageDetailsControl : UserControl
 
     public void ClearSelectedFields()
     {
-        try
-        {
-            Dispatcher.Invoke(() =>
-            {
-                // Önce tüm seçimleri Dictionary'den kaldır
-                foreach (var key in _selectedFields.Keys.ToList())
-                {
-                    if (_selectedFields.TryRemove(key, out _))
-                    {
-                        FieldSelectionChanged?.Invoke(new SelectedFieldInfo
-                        {
-                            TabId = _tabId,
-                            Field = key.field,
-                            SysId = key.sysid,
-                            CompId = key.compid,
-                            MsgId = key.msgid
-                        }, false);
-                    }
-                }
-
-                // Sonra ListView'daki seçimleri temizle
-                fieldsListView.SelectedItems.Clear();
-                SelectionChanged?.Invoke(this, false);
-            });
-        }
-        catch (Exception)
-        {
-            // Hata durumunda sessizce devam et
-        }
+        fieldsListView.SelectedItems.Clear();
     }
 
     public MessageDetailsControl(PacketInspector<MAVLink.MAVLinkMessage> mavInspector)
@@ -171,12 +141,6 @@ public partial class MessageDetailsControl : UserControl
         UpdateMessageDetails(message);
     }
 
-    public void Initialize(string tabId)
-    {
-        _tabId = tabId;
-        fieldsListView.SelectionChanged += FieldsListView_SelectionChanged;
-    }
-
     private void UpdateTimer_Tick(object? sender, EventArgs e)
     {
         if (_currentMessage == null) return;
@@ -235,113 +199,32 @@ public partial class MessageDetailsControl : UserControl
             }
         }
     }
-    public void RemoveSelectedField(byte sysid, byte compid, uint msgid, string field)
-    {
-        try
-        {
-            var key = (sysid, compid, msgid, field);
 
-            Dispatcher.Invoke(() =>
-            {
-                if (_selectedFields.TryRemove(key, out _))
-                {
-                    // ListView'dan kaldır
-                    var itemToRemove = fieldsListView.Items.Cast<dynamic>()
-                        .FirstOrDefault(item => item.Field.ToString() == field);
+    public event EventHandler<IEnumerable<(byte sysid, byte compid, uint msgid, string field)>> SelectionChangedWithFields;
 
-                    if (itemToRemove != null)
-                    {
-                        fieldsListView.SelectedItems.Remove(itemToRemove);
-                    }
-
-                    // Event'leri tetikle
-                    SelectionChanged?.Invoke(this, HasSelectedFields());
-                    FieldSelectionChanged?.Invoke(new SelectedFieldInfo
-                    {
-                        TabId = _tabId,
-                        Field = field,
-                        SysId = sysid,
-                        CompId = compid,
-                        MsgId = msgid
-                    }, false);
-                }
-            }, DispatcherPriority.Normal);
-        }
-        catch (Exception)
-        {
-            // Hata durumunda sessizce devam et
-        }
-    }
     private void FieldsListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_currentMessage == null) return;
 
-        try
+        var selectedFields = new List<(byte sysid, byte compid, uint msgid, string field)>();
+
+        // Tüm seçili alanları kontrol et
+        foreach (dynamic item in fieldsListView.SelectedItems)
         {
-            // Eşzamanlı işlem için lock kullan
-            lock (_selectedFields)
+            if (IsNumericType(item.Type.ToString()))
             {
-                // Yeni seçilenleri ekle
-                foreach (dynamic item in e.AddedItems)
-                {
-                    if (IsNumericType(item.Type.ToString()))
-                    {
-                        var field = new SelectedFieldInfo
-                        {
-                            TabId = _tabId,
-                            DisplayText = $"{_currentMessage.msgtypename}.{item.Field}",
-                            Field = item.Field.ToString(),
-                            SysId = _currentMessage.sysid,
-                            CompId = _currentMessage.compid,
-                            MsgId = _currentMessage.msgid
-                        };
-
-                        var key = (_currentMessage.sysid, _currentMessage.compid, _currentMessage.msgid, item.Field.ToString());
-                        if (_selectedFields.TryAdd(((byte sysid, byte compid, uint msgid, string field))key, true))
-                        {
-                            FieldSelectionChanged?.Invoke(field, true);
-                        }
-                    }
-                }
-
-                // Seçimi kaldırılanları çıkar
-                foreach (dynamic item in e.RemovedItems)
-                {
-                    var key = (_currentMessage.sysid, _currentMessage.compid, _currentMessage.msgid, item.Field.ToString());
-                    if (_selectedFields.TryRemove(((byte sysid, byte compid, uint msgid, string field))key, out _))
-                    {
-                        var field = new SelectedFieldInfo
-                        {
-                            TabId = _tabId,
-                            Field = item.Field.ToString(),
-                            SysId = _currentMessage.sysid,
-                            CompId = _currentMessage.compid,
-                            MsgId = _currentMessage.msgid
-                        };
-                        FieldSelectionChanged?.Invoke(field, false);
-                    }
-                }
+                selectedFields.Add((
+                    _currentMessage.sysid,
+                    _currentMessage.compid,
+                    _currentMessage.msgid,
+                    item.Field.ToString()
+                ));
             }
-
-            // Seçim durumunu bildir
-            SelectionChanged?.Invoke(this, HasSelectedFields());
         }
-        catch (Exception)
-        {
-            // Hata durumunda seçimleri temizle
-            ClearSelectedFields();
-        }
-    }
 
-    public void RemoveFieldFromSelection(string fieldName)
-    {
-        var itemToRemove = fieldsListView.Items.Cast<dynamic>()
-            .FirstOrDefault(item => item.Field.ToString() == fieldName);
-
-        if (itemToRemove != null)
-        {
-            fieldsListView.SelectedItems.Remove(itemToRemove);
-        }
+        // Seçim değişikliğini bildir
+        SelectionChanged?.Invoke(this, selectedFields.Any());
+        SelectionChangedWithFields?.Invoke(this, selectedFields);
     }
 
     private void FieldsListView_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -377,5 +260,29 @@ public partial class MessageDetailsControl : UserControl
     public void StopUpdates()
     {
         _updateTimer.Stop();
+    }
+
+    public void RemoveSelectedField(byte sysid, byte compid, uint msgid, string field)
+    {
+        // Seçili alanı bul ve kaldır
+        var itemToRemove = fieldsListView.Items.Cast<dynamic>()
+            .FirstOrDefault(item =>
+                _currentMessage != null &&
+                _currentMessage.sysid == sysid &&
+                _currentMessage.compid == compid &&
+                _currentMessage.msgid == msgid &&
+                item.Field.ToString() == field);
+
+        if (itemToRemove != null)
+        {
+            fieldsListView.SelectedItems.Remove(itemToRemove);
+        }
+
+        // _selectedFields koleksiyonundan da kaldır
+        _selectedFields.TryRemove((sysid, compid, msgid, field), out _);
+
+        // Seçim değişikliğini bildir
+        SelectionChanged?.Invoke(this, fieldsListView.SelectedItems.Count > 0);
+        SelectionChangedWithFields?.Invoke(this, GetSelectedFieldsForGraph());
     }
 }

@@ -1312,6 +1312,20 @@ public partial class MainWindow : Window
             UpdateGraphButtonState();
         };
 
+        // Yeni event handler ekle
+        detailsControl.SelectionChangedWithFields += (s, fields) =>
+        {
+            if (fields.Any())
+            {
+                foreach (var field in fields)
+                {
+                    _selectedFieldsForGraph.Add(field);
+                }
+            }
+            UpdateSelectedFieldsPanel();
+            UpdateGraphButtonState();
+        };
+
         newTab.Content = detailsControl;
         newTab.Tag = detailsControl;
 
@@ -2531,10 +2545,9 @@ public partial class MainWindow : Window
         try
         {
             selectedFieldsPanelItems.Clear();
-
             var allFields = new List<SelectedFieldInfo>();
 
-            // Ana tab'dan seçilenleri ekle
+            // Ana sekmedeki seçimleri ekle
             foreach (var field in _selectedFieldsForGraph)
             {
                 var messageName = GetMessageName(field.msgid);
@@ -2549,12 +2562,13 @@ public partial class MainWindow : Window
                 });
             }
 
-            // Diğer tab'lardan seçilenleri ekle
+            // Diğer sekmelerdeki seçimleri ekle
             foreach (TabItem tab in messageTabControl.Items)
             {
                 if (tab != defaultTab && tab.Content is MessageDetailsControl control)
                 {
-                    foreach (var field in control.GetSelectedFieldsForGraph())
+                    var fields = control.GetSelectedFieldsForGraph();
+                    foreach (var field in fields)
                     {
                         var messageName = GetMessageName(field.msgid);
                         allFields.Add(new SelectedFieldInfo
@@ -2577,12 +2591,9 @@ public partial class MainWindow : Window
             }
 
             // Panel görünürlüğünü güncelle
-            selectedFieldsBorder.Visibility = selectedFieldsPanelItems.Count > 0
+            selectedFieldsBorder.Visibility = selectedFieldsPanelItems.Any()
                 ? Visibility.Visible
                 : Visibility.Collapsed;
-
-            // Graph butonunu güncelle
-            UpdateGraphButtonState();
         }
         catch (Exception)
         {
