@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Collections.Concurrent;
 using System.Windows.Threading;
+using System.Collections.Generic;
 
 namespace MavlinkInspector.Controls;
 
@@ -61,6 +62,9 @@ public partial class MessageDetailsControl : UserControl
     public void ClearSelectedFields()
     {
         fieldsListView.SelectedItems.Clear();
+        _selectedFields.Clear();
+        SelectionChanged?.Invoke(this, false);
+        SelectionChangedWithFields?.Invoke(this, new List<(byte, byte, uint, string)>());
     }
 
     public MessageDetailsControl(PacketInspector<MAVLink.MAVLinkMessage> mavInspector)
@@ -157,6 +161,9 @@ public partial class MessageDetailsControl : UserControl
 
     private void UpdateMessageDetails(MAVLink.MAVLinkMessage message)
     {
+        // Store current message
+        _currentMessage = message;
+
         // Update header info
         headerText.Text = message.header.ToString();
         lengthText.Text = message.Length.ToString();
@@ -202,29 +209,45 @@ public partial class MessageDetailsControl : UserControl
 
     public event EventHandler<IEnumerable<(byte sysid, byte compid, uint msgid, string field)>> SelectionChangedWithFields;
 
+    public void UpdateSelections()
+    {
+        var selectedFields = GetSelectedFieldsForGraph();
+        SelectionChanged?.Invoke(this, selectedFields.Any());
+        SelectionChangedWithFields?.Invoke(this, selectedFields);
+    }
+
     private void FieldsListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_currentMessage == null) return;
 
-        var selectedFields = new List<(byte sysid, byte compid, uint msgid, string field)>();
-
-        // Tüm seçili alanları kontrol et
-        foreach (dynamic item in fieldsListView.SelectedItems)
+        try
         {
-            if (IsNumericType(item.Type.ToString()))
+            // Seçimi kaldırılanları işle
+            foreach (dynamic item in e.RemovedItems)
             {
-                selectedFields.Add((
-                    _currentMessage.sysid,
-                    _currentMessage.compid,
-                    _currentMessage.msgid,
-                    item.Field.ToString()
-                ));
+                var field = item.Field.ToString();
+                var key = (_currentMessage.sysid, _currentMessage.compid, _currentMessage.msgid, field);
+                _selectedFields.TryRemove(((byte sysid, byte compid, uint msgid, string field))key, out _);
             }
-        }
 
-        // Seçim değişikliğini bildir
-        SelectionChanged?.Invoke(this, selectedFields.Any());
-        SelectionChangedWithFields?.Invoke(this, selectedFields);
+            // Yeni seçilenleri işle
+            foreach (dynamic item in e.AddedItems)
+            {
+                if (IsNumericType(item.Type.ToString()))
+                {
+                    var field = item.Field.ToString();
+                    var key = (_currentMessage.sysid, _currentMessage.compid, _currentMessage.msgid, field);
+                    _selectedFields.TryAdd(((byte sysid, byte compid, uint msgid, string field))key, true);
+                }
+            }
+
+            // Selection event'lerini tetikle
+            UpdateSelections();
+        }
+        catch (Exception)
+        {
+            // Hata durumunda sessizce devam et
+        }
     }
 
     private void FieldsListView_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -234,16 +257,19 @@ public partial class MessageDetailsControl : UserControl
 
     private void GraphMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        TriggerGraphing();
+        var selectedFields = GetSelectedFieldsForGraph();
+        if (selectedFields.Any())
+        {
+            FieldsSelectedForGraph?.Invoke(this, selectedFields);
+        }
     }
 
     private void TriggerGraphing()
     {
-        if (_selectedFields.Count > 0)
+        var selectedFields = GetSelectedFieldsForGraph();
+        if (selectedFields.Any())
         {
-            FieldsSelectedForGraph?.Invoke(this, _selectedFields.Keys);
-            _selectedFields.Clear();
-            fieldsListView.SelectedItems.Clear();
+            FieldsSelectedForGraph?.Invoke(this, selectedFields);
         }
     }
 
@@ -264,25 +290,33 @@ public partial class MessageDetailsControl : UserControl
 
     public void RemoveSelectedField(byte sysid, byte compid, uint msgid, string field)
     {
-        // Seçili alanı bul ve kaldır
-        var itemToRemove = fieldsListView.Items.Cast<dynamic>()
-            .FirstOrDefault(item =>
-                _currentMessage != null &&
-                _currentMessage.sysid == sysid &&
-                _currentMessage.compid == compid &&
-                _currentMessage.msgid == msgid &&
-                item.Field.ToString() == field);
-
-        if (itemToRemove != null)
+        try
         {
-            fieldsListView.SelectedItems.Remove(itemToRemove);
+            var key = (sysid, compid, msgid, field);
+            _selectedFields.TryRemove(key, out _);
+
+            Dispatcher.Invoke(() =>
+            {
+                var itemToRemove = fieldsListView.Items.Cast<dynamic>()
+                    .FirstOrDefault(item =>
+                        _currentMessage != null &&
+                        _currentMessage.sysid == sysid &&
+                        _currentMessage.compid == compid &&
+                        _currentMessage.msgid == msgid &&
+                        item.Field.ToString() == field);
+
+                if (itemToRemove != null)
+                {
+                    fieldsListView.SelectedItems.Remove(itemToRemove);
+                }
+
+                // Selection event'lerini tetikle
+                UpdateSelections();
+            });
         }
-
-        // _selectedFields koleksiyonundan da kaldır
-        _selectedFields.TryRemove((sysid, compid, msgid, field), out _);
-
-        // Seçim değişikliğini bildir
-        SelectionChanged?.Invoke(this, fieldsListView.SelectedItems.Count > 0);
-        SelectionChangedWithFields?.Invoke(this, GetSelectedFieldsForGraph());
+        catch (Exception)
+        {
+            // Hata durumunda sessizce devam et
+        }
     }
 }

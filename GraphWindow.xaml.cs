@@ -647,7 +647,7 @@ namespace MavlinkInspector
                 Chart.UpdateLayout();
                 StatisticsGrid.Items.Refresh();
                 UpdateStatus();
-                ResetView_Click(null,null);
+                ResetView_Click(null, null);
             }
             catch (Exception ex)
             {
@@ -912,30 +912,32 @@ namespace MavlinkInspector
             {
                 // Değeri 9 decimal'e yuvarla
                 value = Math.Round(value, 9);
-                var filteredValue = ApplyFilter(key, value);
-                filteredValue = Math.Round(filteredValue, 9);
 
                 if (_valuesByField.TryGetValue(key, out var values))
                 {
                     var maxSamples = GetMaxSamples();
-                    while (values.Count >= maxSamples)
+
+                    // Değer filtreleme ve ekleme
+                    var filteredValue = ApplyFilter(key, value);
+                    filteredValue = Math.Round(filteredValue, 9);
+
+                    // Mevcut veri sayısını kontrol et
+                    if (values.Count >= maxSamples)
                     {
                         values.RemoveAt(0);
                     }
 
                     values.Add(filteredValue);
 
-                    // Zoom limitlerini kontrol et ve ayarla
-                    if (Chart.AxisX[0].MaxValue - Chart.AxisX[0].MinValue > MAX_ZOOM_X)
-                    {
-                        Chart.AxisX[0].MaxValue = Chart.AxisX[0].MinValue + MAX_ZOOM_X;
-                    }
-
+                    // İstatistikleri güncelle
                     UpdateStatistics(key, filteredValue);
                     UpdateLegendItem(key, filteredValue);
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // Hata durumunda sessizce devam et
+            }
         }
 
         private int GetMaxSamples()
@@ -1011,74 +1013,108 @@ namespace MavlinkInspector
 
         private void StatisticsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            _focusedSeries.Clear();
-
-            if (StatisticsGrid.SelectedItems.Count > 0)
+            try
             {
-                var selectedSeries = new List<LineSeries>();
+                _focusedSeries.Clear();
 
-                foreach (LegendItem item in StatisticsGrid.SelectedItems)
+                if (StatisticsGrid.SelectedItems.Count > 0)
                 {
-                    var series = _seriesCollection.FirstOrDefault(s => s.Title == item.Title) as LineSeries;
-                    if (series != null)
+                    var selectedSeries = new List<LineSeries>();
+
+                    foreach (LegendItem item in StatisticsGrid.SelectedItems)
                     {
-                        selectedSeries.Add(series);
-                        _focusedSeries.Add(item.Title);
-
-                        // Seçili serileri vurgula
-                        series.StrokeThickness = 3;
-                        series.Opacity = 1;
+                        var series = _seriesCollection.FirstOrDefault(s => s.Title == item.Title) as LineSeries;
+                        if (series != null)
+                        {
+                            selectedSeries.Add(series);
+                            _focusedSeries.Add(item.Title);
+                            series.StrokeThickness = 3;
+                            series.Opacity = 1;
+                        }
                     }
-                }
 
-                // Seçili olmayan serileri sönükleştir
-                foreach (var series in _seriesCollection.Cast<LineSeries>())
-                {
-                    if (!_focusedSeries.Contains(series.Title))
+                    // Seçili olmayan serileri sönükleştir
+                    foreach (var series in _seriesCollection.Cast<LineSeries>())
                     {
-                        series.StrokeThickness = 1;
-                        series.Opacity = 0.3;
+                        if (!_focusedSeries.Contains(series.Title))
+                        {
+                            series.StrokeThickness = 1;
+                            series.Opacity = 0.3;
+                        }
                     }
-                }
 
-                if (selectedSeries.Any())
-                {
-                    var values = selectedSeries.SelectMany(s => s.Values.Cast<double>());
-                    var minY = values.Min();
-                    var maxY = values.Max();
-                    var padding = (maxY - minY) * 0.1;
+                    if (selectedSeries.Any())
+                    {
+                        try
+                        {
+                            var values = selectedSeries.SelectMany(s => s.Values.Cast<double>());
+                            if (values.Any())
+                            {
+                                var minY = values.Min();
+                                var maxY = values.Max();
+                                var padding = (maxY - minY) * 0.1;
 
-                    Chart.AxisY[0].MinValue = minY - padding;
-                    Chart.AxisY[0].MaxValue = maxY + padding;
+                                Chart.AxisY[0].MinValue = minY - padding;
+                                Chart.AxisY[0].MaxValue = maxY + padding;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            // Değer hesaplama hatası durumunda varsayılan eksenleri kullan
+                            Chart.AxisY[0].MinValue = double.NaN;
+                            Chart.AxisY[0].MaxValue = double.NaN;
+                        }
 
-                    AutoScaleCheckbox.IsChecked = false;
-                }
-            }
-            else
-            {
-                // Tüm serileri normal haline getir
-                foreach (var series in _seriesCollection.Cast<LineSeries>())
-                {
-                    series.StrokeThickness = 2;
-                    series.Opacity = 1;
-                }
-
-                // Auto scale durumunu kontrol et
-                if (AutoScaleCheckbox.IsChecked == true)
-                {
-                    Chart.AxisY[0].MinValue = double.NaN;
-                    Chart.AxisY[0].MaxValue = double.NaN;
+                        AutoScaleCheckbox.IsChecked = false;
+                    }
                 }
                 else
                 {
+                    // Tüm serileri normal haline getir
+                    foreach (var series in _seriesCollection.Cast<LineSeries>())
+                    {
+                        series.StrokeThickness = 2;
+                        series.Opacity = 1;
+                    }
+
+                    ResetAxisScaling();
+                }
+            }
+            catch (Exception ex)
+            {
+                // Hata durumunda varsayılan ayarlara dön
+                ResetAxisScaling();
+            }
+        }
+
+        private void ResetAxisScaling()
+        {
+            if (AutoScaleCheckbox.IsChecked == true)
+            {
+                Chart.AxisY[0].MinValue = double.NaN;
+                Chart.AxisY[0].MaxValue = double.NaN;
+            }
+            else
+            {
+                try
+                {
                     var allSeries = _seriesCollection.Cast<LineSeries>();
                     var values = allSeries.SelectMany(s => s.Values.Cast<double>());
-                    var minY = values.Min();
-                    var maxY = values.Max();
-                    var padding = (maxY - minY) * 0.1;
+                    if (values.Any())
+                    {
+                        var minY = values.Min();
+                        var maxY = values.Max();
+                        var padding = (maxY - minY) * 0.1;
 
-                    Chart.AxisY[0].MinValue = minY - padding;
-                    Chart.AxisY[0].MaxValue = maxY + padding;
+                        Chart.AxisY[0].MinValue = minY - padding;
+                        Chart.AxisY[0].MaxValue = maxY + padding;
+                    }
+                }
+                catch
+                {
+                    // Hata durumunda otomatik ölçeklendirmeye geç
+                    Chart.AxisY[0].MinValue = double.NaN;
+                    Chart.AxisY[0].MaxValue = double.NaN;
                 }
             }
         }

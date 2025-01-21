@@ -225,7 +225,7 @@ public partial class MainWindow : Window
         {
             _connectionManager.OnMessageSent -= HandleMessage;
             RemoveGCSTrafficFromTreeView();
-            Dispatcher.BeginInvoke(RefreshTreeView);
+            ResetButton_Click(null,null);
         };
 
         // Başlangıçta GCS trafiğini dinlemeye başla
@@ -1315,13 +1315,30 @@ public partial class MainWindow : Window
         // Yeni event handler ekle
         detailsControl.SelectionChangedWithFields += (s, fields) =>
         {
-            if (fields.Any())
+            // Önce eski seçimleri temizle
+            if (_currentlyDisplayedMessage != null &&
+                _currentlyDisplayedMessage.sysid == message.sysid &&
+                _currentlyDisplayedMessage.compid == message.compid &&
+                _currentlyDisplayedMessage.msgid == message.msgid)
             {
-                foreach (var field in fields)
+                var oldFields = _selectedFieldsForGraph
+                    .Where(f => f.sysid == message.sysid &&
+                               f.compid == message.compid &&
+                               f.msgid == message.msgid)
+                    .ToList();
+
+                foreach (var field in oldFields)
                 {
-                    _selectedFieldsForGraph.Add(field);
+                    _selectedFieldsForGraph.Remove(field);
                 }
             }
+
+            // Yeni seçimleri ekle
+            foreach (var field in fields)
+            {
+                _selectedFieldsForGraph.Add(field);
+            }
+
             UpdateSelectedFieldsPanel();
             UpdateGraphButtonState();
         };
@@ -2545,52 +2562,51 @@ public partial class MainWindow : Window
         try
         {
             selectedFieldsPanelItems.Clear();
-            var allFields = new List<SelectedFieldInfo>();
 
-            // Ana sekmedeki seçimleri ekle
-            foreach (var field in _selectedFieldsForGraph)
+            // Sadece aktif seçimleri ekle
+            var selectedFields = new HashSet<(byte sysid, byte compid, uint msgid, string field)>();
+
+            // Ana sekmede seçili olanları ekle
+            foreach (dynamic item in fieldsListView.SelectedItems)
+            {
+                if (_currentlyDisplayedMessage != null && IsNumericType(item.Type.ToString()))
+                {
+                    selectedFields.Add((
+                        _currentlyDisplayedMessage.sysid,
+                        _currentlyDisplayedMessage.compid,
+                        _currentlyDisplayedMessage.msgid,
+                        item.Field.ToString()
+                    ));
+                }
+            }
+
+            // Diğer sekmelerde seçili olanları ekle
+            foreach (TabItem tab in messageTabControl.Items)
+            {
+                if (tab != defaultTab && tab.Content is MessageDetailsControl control)
+                {
+                    selectedFields.UnionWith(control.GetSelectedFieldsForGraph());
+                }
+            }
+
+            // Selected fields paneline ekle
+            foreach (var field in selectedFields)
             {
                 var messageName = GetMessageName(field.msgid);
-                allFields.Add(new SelectedFieldInfo
+                selectedFieldsPanelItems.Add(new SelectedFieldInfo
                 {
                     SysId = field.sysid,
                     CompId = field.compid,
                     MsgId = field.msgid,
                     Field = field.field,
                     DisplayText = $"{messageName}.{field.field} ({field.sysid}:{field.compid})",
-                    SourceTab = defaultTab
+                    SourceTab = GetSourceTab(field)
                 });
             }
 
-            // Diğer sekmelerdeki seçimleri ekle
-            foreach (TabItem tab in messageTabControl.Items)
-            {
-                if (tab != defaultTab && tab.Content is MessageDetailsControl control)
-                {
-                    var fields = control.GetSelectedFieldsForGraph();
-                    foreach (var field in fields)
-                    {
-                        var messageName = GetMessageName(field.msgid);
-                        allFields.Add(new SelectedFieldInfo
-                        {
-                            SysId = field.sysid,
-                            CompId = field.compid,
-                            MsgId = field.msgid,
-                            Field = field.field,
-                            DisplayText = $"{messageName}.{field.field} ({field.sysid}:{field.compid})",
-                            SourceTab = tab
-                        });
-                    }
-                }
-            }
+            // _selectedFieldsForGraph'ı güncelle
+            _selectedFieldsForGraph = selectedFields;
 
-            // Tekrarlanan öğeleri filtrele ve ekle
-            foreach (var field in allFields.DistinctBy(f => (f.SysId, f.CompId, f.MsgId, f.Field)))
-            {
-                selectedFieldsPanelItems.Add(field);
-            }
-
-            // Panel görünürlüğünü güncelle
             selectedFieldsBorder.Visibility = selectedFieldsPanelItems.Any()
                 ? Visibility.Visible
                 : Visibility.Collapsed;
@@ -2601,24 +2617,24 @@ public partial class MainWindow : Window
         }
     }
 
-    private void SelectedField_MouseDown(object sender, MouseButtonEventArgs e)
+    private TabItem GetSourceTab((byte sysid, byte compid, uint msgid, string field) field)
     {
-        if (e.MiddleButton == MouseButtonState.Pressed)
+        foreach (TabItem tab in messageTabControl.Items)
         {
-            if (sender is Border border && border.Tag is SelectedFieldInfo field)
+            if (tab.Content is MessageDetailsControl control)
             {
-                _selectedFieldsForGraph.Remove((field.SysId, field.CompId, field.MsgId, field.Field));
-                UpdateSelectedFieldsPanel();
-                UpdateGraphButtonState();
-
-                // Son öğe kaldırıldıysa paneli gizle
-                if (_selectedFieldsForGraph.Count == 0)
+                var selectedFields = control.GetSelectedFieldsForGraph();
+                if (selectedFields.Any(f =>
+                    f.sysid == field.sysid &&
+                    f.compid == field.compid &&
+                    f.msgid == field.msgid &&
+                    f.field == field.field))
                 {
-                    selectedFieldsBorder.Visibility = Visibility.Collapsed;
+                    return tab;
                 }
             }
-            e.Handled = true;
         }
+        return defaultTab;
     }
 
     private void RemoveField_Click(object sender, RoutedEventArgs e)
@@ -2627,31 +2643,34 @@ public partial class MainWindow : Window
         {
             try
             {
-                if (field.SourceTab == defaultTab)
-                {
-                    // Ana tabdan seçilen alanı kaldır
-                    var key = (field.SysId, field.CompId, field.MsgId, field.Field);
-                    _selectedFieldsForGraph.Remove(key);
+                // Field'ı önce HashSet'ten kaldır
+                _selectedFieldsForGraph.Remove((field.SysId, field.CompId, field.MsgId, field.Field));
 
-                    // ListView'dan seçimi kaldır
-                    if (fieldsListView != null)
+                // İlgili kontrolden seçimi kaldır
+                if (field.SourceTab?.Content is MessageDetailsControl control)
+                {
+                    control.RemoveSelectedField(field.SysId, field.CompId, field.MsgId, field.Field);
+                    control.UpdateSelections(); // Selection event'ini強制的に発火
+                }
+                else if (field.SourceTab == defaultTab)
+                {
+                    var itemToRemove = fieldsListView?.Items.Cast<dynamic>()
+                        .FirstOrDefault(item => item.Field.ToString() == field.Field);
+                    if (itemToRemove != null)
                     {
-                        var itemToRemove = fieldsListView.Items.Cast<dynamic>()
-                            .FirstOrDefault(item => item.Field.ToString() == field.Field);
-                        if (itemToRemove != null)
-                        {
-                            fieldsListView.SelectedItems.Remove(itemToRemove);
-                        }
+                        fieldsListView.SelectedItems.Remove(itemToRemove);
                     }
                 }
-                else if (field.SourceTab?.Content is MessageDetailsControl control)
-                {
-                    // Diğer tablardan seçilen alanı kaldır
-                    control.RemoveSelectedField(field.SysId, field.CompId, field.MsgId, field.Field);
-                }
 
-                // Paneli güncelle
+                // Paneli ve buton durumunu güncelle
                 UpdateSelectedFieldsPanel();
+                UpdateGraphButtonState();
+
+                // Panel boşsa gizle
+                if (!selectedFieldsPanelItems.Any())
+                {
+                    selectedFieldsBorder.Visibility = Visibility.Collapsed;
+                }
             }
             catch (Exception)
             {
@@ -2662,9 +2681,11 @@ public partial class MainWindow : Window
 
     private void ClearAllFields_Click(object sender, RoutedEventArgs e)
     {
-        // Ana tab'daki seçimleri temizle
+        // Ana koleksiyonu temizle
         _selectedFieldsForGraph.Clear();
-        fieldsListView.SelectedItems.Clear();
+
+        // Ana tab'daki seçimleri temizle
+        fieldsListView?.SelectedItems.Clear();
 
         // Diğer tab'lardaki seçimleri temizle
         foreach (TabItem tab in messageTabControl.Items)
@@ -2675,9 +2696,10 @@ public partial class MainWindow : Window
             }
         }
 
-        UpdateSelectedFieldsPanel();
-        UpdateGraphButtonState();
+        // Panel'i güncelle
+        selectedFieldsPanelItems.Clear();
         selectedFieldsBorder.Visibility = Visibility.Collapsed;
+        UpdateGraphButtonState();
     }
 
     private void LoadAssembly(string dllPath)
@@ -2717,7 +2739,7 @@ public partial class MainWindow : Window
                             MAVLink.MAVLINK_MESSAGE_INFOS = newMessageInfos.ToArray();
 
                             RestoreDefaultButton.IsEnabled = true;
-                            LoadCustomDllButton.Content = "Reload Custom DLL";
+                            LoadCustomDllButton.Content = "Reload DLL";
                             ResetButton_Click(null, null);
 
                             MessageBoxService.ShowInfo(
@@ -2788,10 +2810,43 @@ public partial class MainWindow : Window
             _loadedCustomDll = null;
 
             RestoreDefaultButton.IsEnabled = false;
-            LoadCustomDllButton.Content = "Load Custom DLL";
+            LoadCustomDllButton.Content = "Load DLL";
 
             // Reset view
             ResetButton_Click(null, null);
+        }
+    }
+
+    private void SelectedField_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.MiddleButton == MouseButtonState.Pressed)
+        {
+            if (sender is Border border && border.Tag is SelectedFieldInfo field)
+            {
+                // Field'ı HashSet'ten kaldır
+                _selectedFieldsForGraph.Remove((field.SysId, field.CompId, field.MsgId, field.Field));
+
+                // İlgili kontrolden seçimi kaldır
+                if (field.SourceTab?.Content is MessageDetailsControl control)
+                {
+                    control.RemoveSelectedField(field.SysId, field.CompId, field.MsgId, field.Field);
+                }
+                else if (field.SourceTab == defaultTab)
+                {
+                    // Ana sekmedeki seçimi kaldır
+                    var itemToRemove = fieldsListView?.Items.Cast<dynamic>()
+                        .FirstOrDefault(item => item.Field.ToString() == field.Field);
+                    if (itemToRemove != null)
+                    {
+                        fieldsListView.SelectedItems.Remove(itemToRemove);
+                    }
+                }
+
+                // Paneli güncelle
+                UpdateSelectedFieldsPanel();
+                UpdateGraphButtonState();
+            }
+            e.Handled = true;
         }
     }
 
