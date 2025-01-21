@@ -147,6 +147,10 @@ public partial class MainWindow : Window
     private MAVLink.message_info[] _uploadedMessageInfos;
     private Assembly _loadedCustomDll;
 
+    // Yeni batch update değişkeni
+    private readonly DispatcherTimer _batchUpdateTimer;
+    private readonly Queue<Action> _pendingUpdates = new();
+
     /// <summary>
     /// Initializes a new instance of the MainWindow class.
     /// </summary>
@@ -173,6 +177,14 @@ public partial class MainWindow : Window
 
         selectedFieldsPanelItems = new ObservableCollection<SelectedFieldInfo>();
         selectedFieldsPanel.ItemsSource = selectedFieldsPanelItems;
+
+        // Batch update timer'ı başlat
+        _batchUpdateTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(UI_UPDATE_DELAY_MS)
+        };
+        _batchUpdateTimer.Tick += ProcessPendingUpdates;
+        _batchUpdateTimer.Start();
     }
 
     private void OnFieldsSelectedForGraph(object? sender, IEnumerable<(byte sysid, byte compid, uint msgid, string field)> fields)
@@ -225,7 +237,7 @@ public partial class MainWindow : Window
         {
             _connectionManager.OnMessageSent -= HandleMessage;
             RemoveGCSTrafficFromTreeView();
-            ResetButton_Click(null,null);
+            ResetButton_Click(null, null);
         };
 
         // Başlangıçta GCS trafiğini dinlemeye başla
@@ -552,59 +564,61 @@ public partial class MainWindow : Window
     /// <param="rate">The message rate.</param>
     private void UpdateTreeViewForMessage(MAVLink.MAVLinkMessage message, double rate)
     {
-        try
-        {
-            // Benzersiz anahtar oluştur
-            var messageKey = (uint)((message.sysid << 16) | (message.compid << 8) | message.msgid);
-            var bps = _mavInspector.GetBps(message.sysid, message.compid, message.msgid);
-            var header = FormatMessageHeader(message, rate, bps);
-
-            // Seçili öğeyi kaydet
-            var selectedItem = treeView1.SelectedItem as TreeViewItem;
-            var selectedMessage = selectedItem?.DataContext as MAVLink.MAVLinkMessage;
-
-            var vehicleNode = GetOrCreateVehicleNode(message.sysid);
-            var componentNode = GetOrCreateComponentNode(vehicleNode, message);
-            var msgNode = componentNode.FindOrCreateChild(header, messageKey, message);
-
-            // Text ve renk güncellemesi
-            if (msgNode.Header is StackPanel sp && sp.Children.Count > 1 &&
-                sp.Children[1] is TextBlock tb)
+        _pendingUpdates.Enqueue(() => {
+            try
             {
-                tb.Text = header;
+                // Benzersiz anahtar oluştur
+                var messageKey = (uint)((message.sysid << 16) | (message.compid << 8) | message.msgid);
+                var bps = _mavInspector.GetBps(message.sysid, message.compid, message.msgid);
+                var header = FormatMessageHeader(message, rate, bps);
 
-                // Yeni rengi hesapla
-                var color = GenerateMessageColor(rate);
-                tb.Foreground = new SolidColorBrush(color);
-            }
+                // Seçili öğeyi kaydet
+                var selectedItem = treeView1.SelectedItem as TreeViewItem;
+                var selectedMessage = selectedItem?.DataContext as MAVLink.MAVLinkMessage;
 
-            // DataContext'i güncelle
-            msgNode.DataContext = message;
+                var vehicleNode = GetOrCreateVehicleNode(message.sysid);
+                var componentNode = GetOrCreateComponentNode(vehicleNode, message);
+                var msgNode = componentNode.FindOrCreateChild(header, messageKey, message);
 
-            if (IsSelectedMessage(message))
-            {
-                UpdateMessageDetails(message);
-            }
-
-            if (currentSortOrder != SortOrder.Name)
-            {
-                var treeViewState = new Dictionary<string, bool>();
-                SaveTreeViewState(treeView1, treeViewState);
-
-                SortTreeView();
-
-                // Seçili öğeyi geri yükle
-                if (selectedMessage != null)
+                // Text ve renk güncellemesi
+                if (msgNode.Header is StackPanel sp && sp.Children.Count > 1 &&
+                    sp.Children[1] is TextBlock tb)
                 {
-                    RestoreSelection(selectedMessage);
+                    tb.Text = header;
+
+                    // Yeni rengi hesapla
+                    var color = GenerateMessageColor(rate);
+                    tb.Foreground = new SolidColorBrush(color);
                 }
 
-                RestoreTreeViewState(treeView1, treeViewState);
+                // DataContext'i güncelle
+                msgNode.DataContext = message;
+
+                if (IsSelectedMessage(message))
+                {
+                    UpdateMessageDetails(message);
+                }
+
+                if (currentSortOrder != SortOrder.Name)
+                {
+                    var treeViewState = new Dictionary<string, bool>();
+                    SaveTreeViewState(treeView1, treeViewState);
+
+                    SortTreeView();
+
+                    // Seçili öğeyi geri yükle
+                    if (selectedMessage != null)
+                    {
+                        RestoreSelection(selectedMessage);
+                    }
+
+                    RestoreTreeViewState(treeView1, treeViewState);
+                }
             }
-        }
-        catch (Exception ex)
-        {
-        }
+            catch (Exception ex)
+            {
+            }
+        });
     }
 
     /// <summary>
@@ -2847,6 +2861,17 @@ public partial class MainWindow : Window
                 UpdateGraphButtonState();
             }
             e.Handled = true;
+        }
+    }
+
+    private void ProcessPendingUpdates(object sender, EventArgs e)
+    {
+        int processed = 0;
+        while (_pendingUpdates.Count > 0 && processed < UI_BATCH_SIZE)
+        {
+            var action = _pendingUpdates.Dequeue();
+            action();
+            processed++;
         }
     }
 

@@ -26,33 +26,24 @@ public static class Extensions
 
     private static void CleanupCache(object? state)
     {
-        if (!Monitor.TryEnter(_cleanupLock)) return;
+        var keysToRemove = _itemCache
+            .Where(kvp => !kvp.Value.TryGetTarget(out _))
+            .Select(kvp => kvp.Key)
+            .ToList();
 
-        try
+        foreach (var key in keysToRemove)
         {
-            var keysToRemove = _itemCache
-                .Where(kvp => !kvp.Value.TryGetTarget(out _))
-                .Select(kvp => kvp.Key)
-                .ToList();
+            _itemCache.TryRemove(key, out _);
+        }
 
-            foreach (var key in keysToRemove)
+        // Cache boyut kontrolü
+        if (_itemCache.Count > MAX_CACHE_SIZE)
+        {
+            var excessKeys = _itemCache.Keys.Take(_itemCache.Count - MAX_CACHE_SIZE);
+            foreach (var key in excessKeys)
             {
                 _itemCache.TryRemove(key, out _);
             }
-
-            // Cache boyutu kontrolü
-            if (_itemCache.Count > MAX_CACHE_SIZE)
-            {
-                var excessKeys = _itemCache.Keys.Take(_itemCache.Count - MAX_CACHE_SIZE);
-                foreach (var key in excessKeys)
-                {
-                    _itemCache.TryRemove(key, out _);
-                }
-            }
-        }
-        finally
-        {
-            Monitor.Exit(_cleanupLock);
         }
     }
 

@@ -9,14 +9,15 @@ public enum PacketInspectorConstants
     MaxQueueSize = 10000
 }
 
-/// <summary>
-/// Paket denetleyici sınıfı.
-/// </summary>
 public class PacketInspector<T>
 {
     private readonly ConcurrentDictionary<uint, ConcurrentDictionary<uint, T>> _history = new();
-    private readonly ConcurrentDictionary<uint, ConcurrentDictionary<uint, List<irate>>> _rate = new();
-    private readonly ConcurrentDictionary<uint, ConcurrentDictionary<uint, List<irate>>> _bps = new();
+    private readonly ConcurrentDictionary<(uint id, uint msgid), CircularBuffer> _rateBuffers = new();
+    private readonly ConcurrentDictionary<(uint id, uint msgid), CircularBuffer> _bpsBuffers = new();
+
+    private const int MAX_HISTORY_SIZE = 10000;
+    private const int MAX_RATE_BUFFERS = 1000;
+    private const int MAX_BATCH_SIZE = 100;
 
     private int _rateHistory = (int)PacketInspectorConstants.DefaultRateHistory;
     public int RateHistory
@@ -25,7 +26,6 @@ public class PacketInspector<T>
         set => _rateHistory = Math.Max(1, Math.Min(value, (int)PacketInspectorConstants.MaxQueueSize));
     }
 
-    private readonly object _lock = new();
     private EventHandler? _newSysidCompid;
     public event EventHandler NewSysidCompid
     {
@@ -33,191 +33,213 @@ public class PacketInspector<T>
         remove => _newSysidCompid -= value;
     }
 
-    private struct irate
+    // Using struct for better memory efficiency and to avoid garbage collection
+    private readonly struct PacketRate
     {
-        public DateTime dateTime { get; }
-        public int value { get; }
+        public readonly long Ticks;
+        public readonly int Value;
 
-        public irate(DateTime dateTime, int value)
+        public PacketRate(long ticks, int value)
         {
-            this.dateTime = dateTime;
-            this.value = value;
+            Ticks = ticks;
+            Value = value;
         }
     }
 
-    private readonly ConcurrentDictionary<(uint id, uint msgid), CircularBuffer<irate>> _rateBuffers =
-        new ConcurrentDictionary<(uint id, uint msgid), CircularBuffer<irate>>();
-    private readonly ConcurrentDictionary<(uint id, uint msgid), CircularBuffer<irate>> _bpsBuffers =
-        new ConcurrentDictionary<(uint id, uint msgid), CircularBuffer<irate>>();
-
-    private class CircularBuffer<T> where T : struct
+    private sealed class CircularBuffer
     {
-        private readonly T[] _buffer;
+        private readonly PacketRate[] _buffer;
         private int _start;
         private int _count;
-        private readonly object _lock = new();
+        private readonly int _capacity;
+        private SpinLock _spinLock = new(false);
+        private readonly int _maxBatchSize;
+        private readonly object _batchLock = new();
 
         public CircularBuffer(int capacity)
         {
-            _buffer = new T[capacity];
+            _capacity = capacity;
+            _buffer = new PacketRate[capacity];
         }
 
-        public void Add(T item)
+        public void Add(PacketRate item)
         {
-            lock (_lock)
+            bool lockTaken = false;
+            try
             {
-                if (_count == _buffer.Length)
+                _spinLock.Enter(ref lockTaken);
+
+                if (_count == _capacity)
                 {
-                    _start = (_start + 1) % _buffer.Length;
+                    _start = (_start + 1) % _capacity;
                 }
                 else
                 {
                     _count++;
                 }
-                _buffer[(_start + _count - 1) % _buffer.Length] = item;
+                _buffer[(_start + _count - 1) % _capacity] = item;
+            }
+            finally
+            {
+                if (lockTaken) _spinLock.Exit();
             }
         }
 
-        public IEnumerable<T> GetItems(DateTime cutoff)
+        public void AddBatch(List<PacketRate> items)
         {
-            lock (_lock)
+            lock (_batchLock)
             {
-                var items = new List<T>();
+                foreach (var item in items.Take(MAX_BATCH_SIZE))
+                {
+                    Add(item);
+                }
+            }
+        }
+
+        public double CalculateRate(long cutoffTicks)
+        {
+            bool lockTaken = false;
+            try
+            {
+                _spinLock.Enter(ref lockTaken);
+
+                if (_count < 2) return 0;
+
+                int validCount = 0;
+                int totalValue = 0;
+                long firstTicks = 0;
+                long lastTicks = 0;
+                bool isFirst = true;
+
                 for (int i = 0; i < _count; i++)
                 {
-                    var item = _buffer[(_start + i) % _buffer.Length];
-                    if (item is irate rate && rate.dateTime >= cutoff)
-                        items.Add(item);
+                    var item = _buffer[(_start + i) % _capacity];
+                    if (item.Ticks >= cutoffTicks)
+                    {
+                        if (isFirst)
+                        {
+                            firstTicks = item.Ticks;
+                            isFirst = false;
+                        }
+                        lastTicks = item.Ticks;
+                        totalValue += item.Value;
+                        validCount++;
+                    }
                 }
-                return items;
+
+                if (validCount < 2) return 0;
+
+                double timeSpan = (lastTicks - firstTicks) / (double)TimeSpan.TicksPerSecond;
+                return timeSpan <= 0 ? 0 : totalValue / timeSpan;
+            }
+            finally
+            {
+                if (lockTaken) _spinLock.Exit();
             }
         }
 
         public void Clear()
         {
-            lock (_lock)
+            bool lockTaken = false;
+            try
             {
+                _spinLock.Enter(ref lockTaken);
                 _start = 0;
                 _count = 0;
             }
+            finally
+            {
+                if (lockTaken) _spinLock.Exit();
+            }
         }
 
-        public void RemoveItemsOlderThan(DateTime cutoff)
+        public void RemoveOldItems(long cutoffTicks)
         {
-            lock (_lock)
+            bool lockTaken = false;
+            try
             {
-                while (_count > 0)
+                _spinLock.Enter(ref lockTaken);
+                while (_count > 0 && _buffer[_start].Ticks < cutoffTicks)
                 {
-                    var item = _buffer[_start];
-                    if (item is irate rate && rate.dateTime >= cutoff)
-                        break;
-
-                    _start = (_start + 1) % _buffer.Length;
+                    _start = (_start + 1) % _capacity;
                     _count--;
                 }
+            }
+            finally
+            {
+                if (lockTaken) _spinLock.Exit();
             }
         }
     }
 
-    /// <summary>
-    /// Görülen sistem kimliklerini döndürür.
-    /// </summary>
-    /// <returns>Görülen sistem kimliklerinin listesi.</returns>
     public List<byte> SeenSysid()
     {
-        return toArray(_history.Keys).Select(id => GetFromID(id).sysid).ToList();
+        return _history.Keys.Select(id => (byte)(id >> 8)).ToList();
     }
 
-    /// <summary>
-    /// Görülen bileşen kimliklerini döndürür.
-    /// </summary>
-    /// <returns>Görülen bileşen kimliklerinin listesi.</returns>
     public List<byte> SeenCompid()
     {
-        return toArray(_history.Keys).Select(id => GetFromID(id).compid).ToList();
+        return _history.Keys.Select(id => (byte)(id & 0xFF)).ToList();
     }
 
-    /// <summary>
-    /// Belirtilen mesajın gönderim hızını hesaplar.
-    /// </summary>
-    /// <param name="sysid">Sistem kimliği.</param>
-    /// <param name="compid">Bileşen kimliği.</param>
-    /// <param name="msgid">Mesaj kimliği.</param>
-    /// <returns>Mesaj gönderim hızı (Hz).</returns>
     public double GetMessageRate(byte sysid, byte compid, uint msgid)
     {
         var id = GetID(sysid, compid);
         var key = (id, msgid);
-        var cutoff = DateTime.UtcNow.AddMilliseconds(-(int)PacketInspectorConstants.MaxHistoryTimeMs);
+        var cutoffTicks = DateTime.UtcNow.AddMilliseconds(-(int)PacketInspectorConstants.MaxHistoryTimeMs).Ticks;
 
-        var buffer = _rateBuffers.GetOrAdd(key, _ => new CircularBuffer<irate>(RateHistory));
-        return CalculateRate(buffer, cutoff);
+        return _rateBuffers.TryGetValue(key, out var buffer)
+            ? buffer.CalculateRate(cutoffTicks)
+            : 0;
     }
 
-    /// <summary>
-    /// Belirtilen mesajın bant genişliğini hesaplar.
-    /// </summary>
-    /// <param name="sysid">Sistem kimliği.</param>
-    /// <param name="compid">Bileşen kimliği.</param>
-    /// <param name="msgid">Mesaj kimliği.</param>
-    /// <returns>Bant genişliği (bps).</returns>
     public double GetBps(byte sysid, byte compid, uint msgid)
     {
         var id = GetID(sysid, compid);
         var key = (id, msgid);
-        var cutoff = DateTime.UtcNow.AddMilliseconds(-(int)PacketInspectorConstants.MaxHistoryTimeMs);
+        var cutoffTicks = DateTime.UtcNow.AddMilliseconds(-(int)PacketInspectorConstants.MaxHistoryTimeMs).Ticks;
 
-        var buffer = _bpsBuffers.GetOrAdd(key, _ => new CircularBuffer<irate>(RateHistory));
-        return CalculateRate(buffer, cutoff) * 8.0; // Convert to bits
+        return _bpsBuffers.TryGetValue(key, out var buffer)
+            ? buffer.CalculateRate(cutoffTicks) * 8.0
+            : 0;
     }
 
-    /// <summary>
-    /// Yeni bir mesaj ekler.
-    /// </summary>
-    /// <param name="sysid">Sistem kimliği.</param>
-    /// <param name="compid">Bileşen kimliği.</param>
-    /// <param name="msgid">Mesaj kimliği.</param>
-    /// <param name="message">Mesaj içeriği.</param>
-    /// <param name="size">Mesaj boyutu.</param>
     public void Add(byte sysid, byte compid, uint msgid, T message, int size)
     {
+        // History size kontrolü
+        if (_history.Count > MAX_HISTORY_SIZE)
+        {
+            var oldestKey = _history.Keys.First();
+            _history.TryRemove(oldestKey, out _);
+        }
+
+        // RateBuffers size kontrolü
+        if (_rateBuffers.Count > MAX_RATE_BUFFERS)
+        {
+            var oldestKey = _rateBuffers.Keys.First();
+            _rateBuffers.TryRemove(oldestKey, out _);
+        }
+
         var id = GetID(sysid, compid);
-        var now = DateTime.UtcNow;
         var key = (id, msgid);
+        var currentTicks = DateTime.UtcNow.Ticks;
 
         _history.GetOrAdd(id, _ => new ConcurrentDictionary<uint, T>())[msgid] = message;
 
-        var rateBuffer = _rateBuffers.GetOrAdd(key, _ => new CircularBuffer<irate>(RateHistory));
-        rateBuffer.Add(new irate(now, 1));
+        var rateBuffer = _rateBuffers.GetOrAdd(key, _ => new CircularBuffer(RateHistory));
+        rateBuffer.Add(new PacketRate(currentTicks, 1));
 
-        var totalSize = size + 8;
-        var bpsBuffer = _bpsBuffers.GetOrAdd(key, _ => new CircularBuffer<irate>(RateHistory));
-        bpsBuffer.Add(new irate(now, totalSize));
+        var bpsBuffer = _bpsBuffers.GetOrAdd(key, _ => new CircularBuffer(RateHistory));
+        bpsBuffer.Add(new PacketRate(currentTicks, size + 8));
 
         _newSysidCompid?.Invoke(this, EventArgs.Empty);
     }
 
-    private IEnumerable<T1> toArray<T1>(IEnumerable<T1> input)
-    {
-        lock (_lock)
-        {
-            return input.ToArray();
-        }
-    }
-
-    /// <summary>
-    /// Paket mesajlarını döndürür.
-    /// </summary>
-    /// <returns>Paket mesajlarının listesi.</returns>
     public IEnumerable<T> GetPacketMessages()
     {
-        return toArray(_history.Values)
-            .SelectMany(messages => toArray(messages.Values));
+        return _history.Values.SelectMany(messages => messages.Values);
     }
 
-    /// <summary>
-    /// Tüm verileri temizler.
-    /// </summary>
     public void Clear()
     {
         _history.Clear();
@@ -229,65 +251,39 @@ public class PacketInspector<T>
         _newSysidCompid?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>
-    /// Belirtilen sistem ve bileşen kimliklerine ait verileri temizler.
-    /// </summary>
-    /// <param name="sysid">Sistem kimliği.</param>
-    /// <param name="compid">Bileşen kimliği.</param>
     public void Clear(byte sysid, byte compid)
     {
         var id = GetID(sysid, compid);
-        lock (_lock)
-        {
-            _history.GetOrAdd(id, _ => new ConcurrentDictionary<uint, T>());
-            _rate.GetOrAdd(id, _ => new ConcurrentDictionary<uint, List<irate>>());
-            _bps.GetOrAdd(id, _ => new ConcurrentDictionary<uint, List<irate>>());
+        _history.TryRemove(id, out _);
 
-            if (_history.TryGetValue(id, out var history))
-                history.Clear();
-            if (_rate.TryGetValue(id, out var rate))
-                rate.Clear();
-            if (_bps.TryGetValue(id, out var bps))
-                bps.Clear();
+        foreach (var key in _rateBuffers.Keys.Where(k => k.id == id).ToList())
+        {
+            if (_rateBuffers.TryGetValue(key, out var buffer))
+                buffer.Clear();
         }
+
+        foreach (var key in _bpsBuffers.Keys.Where(k => k.id == id).ToList())
+        {
+            if (_bpsBuffers.TryGetValue(key, out var buffer))
+                buffer.Clear();
+        }
+
         _newSysidCompid?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>
-    /// Belirtilen sistem ve bileşen kimliklerine ait mesajları döndürür.
-    /// </summary>
-    /// <param name="sysid">Sistem kimliği.</param>
-    /// <param name="compid">Bileşen kimliği.</param>
-    /// <returns>Mesajların listesi.</returns>
     public IEnumerable<T> this[byte sysid, byte compid]
     {
         get
         {
             var id = GetID(sysid, compid);
             return _history.TryGetValue(id, out var messages)
-                ? toArray(messages.Values)
+                ? messages.Values
                 : Enumerable.Empty<T>();
         }
     }
 
-    private static uint GetID(byte sysid, byte compid)
-    {
-        return (uint)(sysid << 8) | compid;
-    }
+    private static uint GetID(byte sysid, byte compid) => (uint)(sysid << 8) | compid;
 
-    private static (byte sysid, byte compid) GetFromID(uint id)
-    {
-        return ((byte)(id >> 8), (byte)(id & 0xFF));
-    }
-
-    /// <summary>
-    /// Belirtilen sistem ve bileşen kimliklerine ait en son mesajı döndürmeye çalışır.
-    /// </summary>
-    /// <param name="sysid">Sistem kimliği.</param>
-    /// <param name="compid">Bileşen kimliği.</param>
-    /// <param name="msgid">Mesaj kimliği.</param>
-    /// <param name="message">En son mesaj.</param>
-    /// <returns>En son mesajın başarıyla döndürülüp döndürülmediği.</returns>
     public bool TryGetLatestMessage(byte sysid, byte compid, uint msgid, out T message)
     {
         message = default;
@@ -297,37 +293,18 @@ public class PacketInspector<T>
                messages.TryGetValue(msgid, out message);
     }
 
-    private double CalculateRate(CircularBuffer<irate> buffer, DateTime cutoff)
-    {
-        var samples = buffer.GetItems(cutoff).Cast<irate>().ToList();
-        if (samples.Count < 2) return 0;
-
-        var timeSpan = (samples.Last().dateTime - samples.First().dateTime).TotalSeconds;
-        if (timeSpan <= 0) return 0;
-
-        var total = samples.Sum(s => s.value);
-        return total / timeSpan;
-    }
-
-    // Cleanup method to remove old data
     public void CleanupOldData()
     {
-        var cutoff = DateTime.UtcNow.AddMilliseconds(-(int)PacketInspectorConstants.MaxHistoryTimeMs);
+        var cutoffTicks = DateTime.UtcNow.AddMilliseconds(-(int)PacketInspectorConstants.MaxHistoryTimeMs).Ticks;
 
-        foreach (var key in _rateBuffers.Keys)
+        foreach (var buffer in _rateBuffers.Values)
         {
-            if (_rateBuffers.TryGetValue(key, out var buffer))
-            {
-                buffer.RemoveItemsOlderThan(cutoff);
-            }
+            buffer.RemoveOldItems(cutoffTicks);
         }
 
-        foreach (var key in _bpsBuffers.Keys)
+        foreach (var buffer in _bpsBuffers.Values)
         {
-            if (_bpsBuffers.TryGetValue(key, out var buffer))
-            {
-                buffer.RemoveItemsOlderThan(cutoff);
-            }
+            buffer.RemoveOldItems(cutoffTicks);
         }
     }
 }

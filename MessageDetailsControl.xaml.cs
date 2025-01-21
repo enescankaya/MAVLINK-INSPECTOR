@@ -9,6 +9,12 @@ namespace MavlinkInspector.Controls;
 
 public partial class MessageDetailsControl : UserControl
 {
+    private const int UI_UPDATE_INTERVAL = 100;
+    private const int BATCH_SIZE = 50;
+
+    private readonly ConcurrentQueue<Action> _updateQueue = new();
+    private readonly DispatcherTimer _batchTimer;
+
     private readonly PacketInspector<MAVLink.MAVLinkMessage> _mavInspector;
     private MAVLink.MAVLinkMessage? _currentMessage;
     private readonly DispatcherTimer _updateTimer;
@@ -137,6 +143,26 @@ public partial class MessageDetailsControl : UserControl
         contextMenu.Items.Add(copyValueMenuItem);
 
         fieldsListView.ContextMenu = contextMenu;
+
+        _batchTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(UI_UPDATE_INTERVAL)
+        };
+        _batchTimer.Tick += ProcessUpdateQueue;
+        _batchTimer.Start();
+    }
+
+    private void ProcessUpdateQueue(object sender, EventArgs e)
+    {
+        int processed = 0;
+        while (_updateQueue.Count > 0 && processed < BATCH_SIZE)
+        {
+            if (_updateQueue.TryDequeue(out var action))
+            {
+                action();
+                processed++;
+            }
+        }
     }
 
     public void SetMessage(MAVLink.MAVLinkMessage message)
