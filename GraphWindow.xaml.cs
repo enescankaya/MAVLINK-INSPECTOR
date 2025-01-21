@@ -442,12 +442,24 @@ namespace MavlinkInspector
 
         private void InitializeSeries()
         {
-            for (int i = 0; i < _trackedFields.Count; i++)
+            // Önce mevcut koleksiyonları temizle
+            _seriesCollection.Clear();
+            _valuesByField.Clear();
+            _lastUpdateTime.Clear();
+            _fieldStats.Clear();
+            _legendItems.Clear();
+
+            // Tekrar eden alanları önlemek için bir HashSet kullan
+            var uniqueFields = new HashSet<(byte sysid, byte compid, uint msgid, string field)>();
+            foreach (var field in _trackedFields)
             {
-                var field = _trackedFields[i];
-                var color = _graphColors[i % _graphColors.Length];
-                var brush = new SolidColorBrush(color);
+                // Eğer bu alan zaten eklenmiş ise atla
+                if (!uniqueFields.Add(field)) continue;
+
                 var key = GetFieldKey(field);
+                var colorIndex = _seriesCollection.Count % _graphColors.Length;
+                var color = _graphColors[colorIndex];
+                var brush = new SolidColorBrush(color);
 
                 var values = new ChartValues<double>();
                 _valuesByField[key] = values;
@@ -462,7 +474,7 @@ namespace MavlinkInspector
                     Values = values,
                     PointGeometry = null,
                     Stroke = brush,
-                    Fill = Brushes.Transparent, // Dolguyu kaldır
+                    Fill = Brushes.Transparent,
                     LineSmoothness = 0
                 });
 
@@ -474,6 +486,10 @@ namespace MavlinkInspector
                     Statistics = new StatisticsInfo()
                 });
             }
+
+            // _trackedFields listesini de güncelle
+            _trackedFields.Clear();
+            _trackedFields.AddRange(uniqueFields);
         }
 
         private void InitializeEventHandlers()
