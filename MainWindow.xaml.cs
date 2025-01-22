@@ -1,5 +1,4 @@
-﻿using MavlinkInspector.Connections;
-using System.IO.Ports;
+﻿using System.IO.Ports;
 using System.IO;
 using System.Windows.Controls;
 using System.Windows;
@@ -42,6 +41,13 @@ public enum SortOrder
     Hz,
     Bps
 }
+public enum ConnectionState
+{
+    Disconnected,
+    Connecting,
+    Connected,
+    Error
+}
 
 public class MessageRateRange
 {
@@ -58,11 +64,19 @@ public partial class MainWindow : Window
     private const int MAX_CACHED_COLORS = 1000;
     private const int MAX_MESSAGE_QUEUE_SIZE = 5000;
     private const int CLEANUP_INTERVAL_MS = 30000; // 30 saniye
+    private const int UI_UPDATE_BATCH_SIZE = 25;
+    private const int TREE_VIEW_UPDATE_INTERVAL = 100;
+    private const int MESSAGE_PROCESS_BATCH_SIZE = 20; // Batch size'ı düşür
+    private const int UI_UPDATE_INTERVAL = 500;  // Default UI update rate'i 500ms'e çıkar
+    private const int MIN_UI_UPDATE_INTERVAL = 500; // En az 500ms bekle
+    private DateTime _lastUiUpdateTime = DateTime.MinValue;
 
     // Mevcut field tanımlamaları yerine daha optimize versiyonları
     private readonly ConcurrentDictionary<uint, Color> _messageColors = new(Environment.ProcessorCount, MAX_CACHED_COLORS);
     private readonly ConcurrentQueue<MAVLink.MAVLinkMessage> _messageQueue = new();
     private readonly DispatcherTimer _cleanupTimer = new();
+    private readonly Queue<MAVLink.MAVLinkMessage> _messageProcessQueue = new();
+    private readonly DispatcherTimer _messageProcessTimer;
 
     private readonly PacketInspector<MAVLink.MAVLinkMessage> _mavInspector = new();
     private readonly DispatcherTimer _timer = new();
@@ -151,6 +165,20 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _batchUpdateTimer;
     private readonly Queue<Action> _pendingUpdates = new();
 
+    private readonly record struct UIState
+    {
+        public ConnectionState ConnectionState { get; init; }
+        public bool ShowGCSTraffic { get; init; }
+    }
+
+    private readonly record struct MessageMetadata
+    {
+        public double Rate { get; init; }
+        public int Size { get; init; }
+    }
+
+    private readonly ConcurrentDictionary<uint, MessageMetadata> _messageMetadata = new();
+
     /// <summary>
     /// Initializes a new instance of the MainWindow class.
     /// </summary>
@@ -185,6 +213,19 @@ public partial class MainWindow : Window
         };
         _batchUpdateTimer.Tick += ProcessPendingUpdates;
         _batchUpdateTimer.Start();
+
+        // Batch işleme timer'ı ekle
+        _messageProcessTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(TREE_VIEW_UPDATE_INTERVAL)
+        };
+        _messageProcessTimer.Tick += ProcessMessageQueue;
+        _messageProcessTimer.Start();
+
+        // TreeView performans optimizasyonları
+        VirtualizingPanel.SetIsVirtualizing(treeView1, true);
+        VirtualizingPanel.SetVirtualizationMode(treeView1, VirtualizationMode.Recycling);
+        VirtualizingStackPanel.SetIsVirtualizing(treeView1, true);
     }
 
     private void OnFieldsSelectedForGraph(object? sender, IEnumerable<(byte sysid, byte compid, uint msgid, string field)> fields)
@@ -457,14 +498,44 @@ public partial class MainWindow : Window
     /// <param="message">The MAVLink message.</param>
     private void HandleMessage(MAVLink.MAVLinkMessage message)
     {
-        // GCS trafiği kontrolü
-        if (message.sysid == 255 && !ShowGCSTraffic.IsChecked.GetValueOrDefault())
-            return;
+        // Message'ı kuyruğa ekle ve direkt işleme
+        _messageProcessQueue.Enqueue(message);
+    }
 
-        // Mesajı ekle ama UI güncellemesini timer'a bırak
-        _mavInspector.Add(message.sysid, message.compid, message.msgid, message, message.Length);
-        Interlocked.Increment(ref _totalMessages);
-        Interlocked.Increment(ref _messagesSinceLastUpdate);
+    private void ProcessMessageQueue(object sender, EventArgs e)
+    {
+        if (!_messageProcessQueue.Any()) return;
+
+        // Batch işlemeyi UI thread'den ayır
+        Task.Run(() =>
+        {
+            var batch = new List<MAVLink.MAVLinkMessage>();
+            int processed = 0;
+
+            while (_messageProcessQueue.TryDequeue(out var message) &&
+                   processed < MESSAGE_PROCESS_BATCH_SIZE)
+            {
+                if (message.sysid == 255 && !ShowGCSTraffic.IsChecked.GetValueOrDefault())
+                    continue;
+
+                batch.Add(message);
+                processed++;
+            }
+
+            if (batch.Any())
+            {
+                // UI güncellemesini throttle et
+                Dispatcher.InvokeAsync(() =>
+                {
+                    foreach (var msg in batch)
+                    {
+                        _mavInspector.Add(msg.sysid, msg.compid, msg.msgid, msg, msg.Length);
+                        Interlocked.Increment(ref _totalMessages);
+                        Interlocked.Increment(ref _messagesSinceLastUpdate);
+                    }
+                }, DispatcherPriority.Background);
+            }
+        });
     }
 
     /// <summary>
@@ -506,8 +577,15 @@ public partial class MainWindow : Window
         var rate = _mavInspector.GetMessageRate(message.sysid, message.compid, message.msgid);
         await Dispatcher.InvokeAsync(() =>
         {
+            // Sadece görüntüleme için basit güncelleme
             UpdateTreeViewForMessage(message, rate);
-            CleanupOldMessages();
+
+            // İstatistikleri güncelle
+            statusMessagesText.Text = $"Messages: {++_totalMessages}";
+            var messagesPerSec = _messagesSinceLastUpdate / MIN_UI_UPDATE_INTERVAL * 1000.0;
+            statusRateText.Text = $"Rate: {messagesPerSec:F1} msg/s";
+            _messagesSinceLastUpdate = 0;
+
         }, DispatcherPriority.Background);
     }
 
@@ -1218,20 +1296,20 @@ public partial class MainWindow : Window
     {
         // Combobox'ı temizle ve yeni değerleri ekle
         UpdateIntervalComboBox.Items.Clear();
-        var intervals = new[] { 100, 200, 500, 1000 };
+        var intervals = Enum.GetValues(typeof(UpdateInterval)).Cast<UpdateInterval>();
 
         foreach (var interval in intervals)
         {
             UpdateIntervalComboBox.Items.Add(new ComboBoxItem
             {
                 Content = interval.ToString(),
-                Tag = interval
+                Tag = (int)interval
             });
         }
 
-        // Varsayılan olarak 200ms seç
-        UpdateIntervalComboBox.SelectedIndex = 1;
-        UPDATE_INTERVAL_MS = 200;
+        // Varsayılan olarak Normal seç
+        UpdateIntervalComboBox.SelectedIndex = 1;  // Normal
+        UPDATE_INTERVAL_MS = (int)UpdateInterval.Normal;
     }
 
     /// <summary>
@@ -2677,19 +2755,18 @@ public partial class MainWindow : Window
     {
         if (sender is Button button && button.CommandParameter is SelectedFieldInfo field)
         {
-            try
-            {
-                // Field'ı önce HashSet'ten kaldır
+      
+                // Field'ı HashSet'ten kaldır
                 _selectedFieldsForGraph.Remove((field.SysId, field.CompId, field.MsgId, field.Field));
 
                 // İlgili kontrolden seçimi kaldır
                 if (field.SourceTab?.Content is MessageDetailsControl control)
                 {
                     control.RemoveSelectedField(field.SysId, field.CompId, field.MsgId, field.Field);
-                    control.UpdateSelections(); // Selection event'ini強制的に発火
                 }
                 else if (field.SourceTab == defaultTab)
                 {
+                    // Ana sekmedeki seçimi kaldır
                     var itemToRemove = fieldsListView?.Items.Cast<dynamic>()
                         .FirstOrDefault(item => item.Field.ToString() == field.Field);
                     if (itemToRemove != null)
@@ -2698,22 +2775,14 @@ public partial class MainWindow : Window
                     }
                 }
 
-                // Paneli ve buton durumunu güncelle
+                // Paneli güncelle
                 UpdateSelectedFieldsPanel();
                 UpdateGraphButtonState();
-
-                // Panel boşsa gizle
-                if (!selectedFieldsPanelItems.Any())
-                {
-                    selectedFieldsBorder.Visibility = Visibility.Collapsed;
-                }
             }
-            catch (Exception)
-            {
-                // Hata durumunda sessizce devam et
-            }
-        }
+            e.Handled = true;
+        
     }
+    
 
     private void ClearAllFields_Click(object sender, RoutedEventArgs e)
     {

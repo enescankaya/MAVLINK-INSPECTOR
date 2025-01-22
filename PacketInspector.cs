@@ -9,6 +9,28 @@ public enum PacketInspectorConstants
     MaxQueueSize = 10000
 }
 
+public enum PacketProcessingMode
+{
+    Realtime,
+    Batched,
+    Buffered
+}
+
+public enum DataCleanupStrategy
+{
+    RemoveOldest,
+    RemoveLeastUsed,
+    RemoveByPriority
+}
+
+public readonly record struct PacketStatistics
+{
+    public double Rate { get; init; }
+    public double Bps { get; init; }
+    public int Count { get; init; }
+    public DateTime LastUpdate { get; init; }
+}
+
 /// <summary>
 /// Paket denetleyici sınıfı.
 /// </summary>
@@ -49,6 +71,8 @@ public class PacketInspector<T>
         new ConcurrentDictionary<(uint id, uint msgid), CircularBuffer<irate>>();
     private readonly ConcurrentDictionary<(uint id, uint msgid), CircularBuffer<irate>> _bpsBuffers =
         new ConcurrentDictionary<(uint id, uint msgid), CircularBuffer<irate>>();
+
+    private readonly ConcurrentDictionary<uint, PacketStatistics> _packetStats = new();
 
     private class CircularBuffer<T> where T : struct
     {
@@ -171,17 +195,25 @@ public class PacketInspector<T>
         return CalculateRate(buffer, cutoff) * 8.0; // Convert to bits
     }
 
-    /// <summary>
-    /// Yeni bir mesaj ekler.
-    /// </summary>
-    /// <param name="sysid">Sistem kimliği.</param>
-    /// <param name="compid">Bileşen kimliği.</param>
-    /// <param name="msgid">Mesaj kimliği.</param>
-    /// <param name="message">Mesaj içeriği.</param>
-    /// <param name="size">Mesaj boyutu.</param>
+    // Buffer boyutları için sabitler
+    private const int MAX_HISTORY_SIZE = 1000;
+    private const int MAX_RATE_BUFFER_SIZE = 100;
+
+    // Optimized Add method
     public void Add(byte sysid, byte compid, uint msgid, T message, int size)
     {
         var id = GetID(sysid, compid);
+
+        // History size kontrolü
+        if (_history.Count > MAX_HISTORY_SIZE)
+        {
+            var oldestKeys = _history.Keys.Take(_history.Count - MAX_HISTORY_SIZE);
+            foreach (var _key in oldestKeys)
+            {
+                _history.TryRemove(_key, out _);
+            }
+        }
+
         var now = DateTime.UtcNow;
         var key = (id, msgid);
 

@@ -10,8 +10,10 @@ namespace MavlinkInspector.Controls;
 
 public partial class MessageDetailsControl : UserControl
 {
-    private const int UI_UPDATE_INTERVAL = 100;
-    private const int BATCH_SIZE = 50;
+    private const int UI_UPDATE_INTERVAL = 500;  // UI update interval'i artır
+    private const int BATCH_SIZE = 10;  // Batch size'ı düşür
+    private const int UPDATE_BATCH_SIZE = 20;
+    private const int MIN_UPDATE_INTERVAL = 100;
 
     private readonly ConcurrentQueue<Action> _updateQueue = new();
     private readonly DispatcherTimer _batchTimer;
@@ -174,7 +176,11 @@ public partial class MessageDetailsControl : UserControl
 
     private void UpdateTimer_Tick(object? sender, EventArgs e)
     {
-        if (_currentMessage == null) return;
+        if (_currentMessage == null || fieldsListView.IsMouseOver) return;
+
+        // Throttle UI updates
+        if ((DateTime.Now - _lastUpdate).TotalMilliseconds < UI_UPDATE_INTERVAL)
+            return;
 
         if (_mavInspector.TryGetLatestMessage(
             _currentMessage.sysid,
@@ -182,76 +188,96 @@ public partial class MessageDetailsControl : UserControl
             _currentMessage.msgid,
             out var latestMessage))
         {
+            _lastUpdate = DateTime.Now;
             UpdateMessageDetails(latestMessage);
         }
     }
 
     private void UpdateMessageDetails(MAVLink.MAVLinkMessage message)
     {
-        // Store current message
-        _currentMessage = message;
-
-        // Update header info
-        headerText.Text = message.header.ToString();
-        lengthText.Text = message.Length.ToString();
-        seqText.Text = message.seq.ToString();
-        sysidText.Text = message.sysid.ToString();
-        compidText.Text = message.compid.ToString();
-        msgidText.Text = message.msgid.ToString();
-        msgTypeText.Text = message.GetType().Name;
-        msgTypeNameText.Text = message.msgtypename;
-        crc16Text.Text = message.crc16.ToString("X4");
-        isMavlink2Text.Text = message.ismavlink2 ? "Mavlink V2" : "Mavlink V1";
-
-        // Store current selections
-        var selectedFields = fieldsListView.SelectedItems.Cast<dynamic>()
-            .Select(item => item.Field.ToString())
-            .ToList();
-
-        fieldsListView.Items.Clear();
-
-        // Fields ve Properties'i birlikte al
-        var members = message.data.GetType()
-            .GetMembers(BindingFlags.Public | BindingFlags.Instance)
-            .Where(m => m.MemberType == MemberTypes.Field || m.MemberType == MemberTypes.Property);
-
-        foreach (var member in members)
+        // Mevcut thread UI thread ise direkt güncelle, değilse kuyruğa al
+        if (Dispatcher.CheckAccess())
         {
-            object? value = null;
-            Type? memberType = null;
+            UpdateUIDirectly(message);
+        }
+        else
+        {
+            _updateQueue.Enqueue(() => UpdateUIDirectly(message));
+        }
+    }
 
-            if (member is FieldInfo field)
+    private void UpdateUIDirectly(MAVLink.MAVLinkMessage message)
+    {
+        if (!fieldsListView.IsMouseOver) // Sadece mouse üzerinde değilse güncelle
+        {
+            using (Dispatcher.DisableProcessing())
             {
-                value = field.GetValue(message.data);
-                memberType = field.FieldType;
-            }
-            else if (member is PropertyInfo property && property.CanRead)
-            {
-                try
-                {
-                    value = property.GetValue(message.data);
-                    memberType = property.PropertyType;
-                }
-                catch { continue; } // Skip properties that throw exceptions
-            }
+                // Store current message
+                _currentMessage = message;
 
-            if (memberType != null)
-            {
-                var typeName = memberType.ToString().Replace("System.", "");
-                var item = new
-                {
-                    Field = member.Name,
-                    Value = value?.ToString() ?? "null",
-                    Type = typeName,
-                    IsProperty = member is PropertyInfo
-                };
+                // Update header info
+                headerText.Text = message.header.ToString();
+                lengthText.Text = message.Length.ToString();
+                seqText.Text = message.seq.ToString();
+                sysidText.Text = message.sysid.ToString();
+                compidText.Text = message.compid.ToString();
+                msgidText.Text = message.msgid.ToString();
+                msgTypeText.Text = message.GetType().Name;
+                msgTypeNameText.Text = message.msgtypename;
+                crc16Text.Text = message.crc16.ToString("X4");
+                isMavlink2Text.Text = message.ismavlink2 ? "Mavlink V2" : "Mavlink V1";
 
-                fieldsListView.Items.Add(item);
+                // Store current selections
+                var selectedFields = fieldsListView.SelectedItems.Cast<dynamic>()
+                    .Select(item => item.Field.ToString())
+                    .ToList();
 
-                // Restore selection if previously selected
-                if (selectedFields.Contains(member.Name))
+                fieldsListView.Items.Clear();
+
+                // Fields ve Properties'i birlikte al
+                var members = message.data.GetType()
+                    .GetMembers(BindingFlags.Public | BindingFlags.Instance)
+                    .Where(m => m.MemberType == MemberTypes.Field || m.MemberType == MemberTypes.Property);
+
+                foreach (var member in members)
                 {
-                    fieldsListView.SelectedItems.Add(item);
+                    object? value = null;
+                    Type? memberType = null;
+
+                    if (member is FieldInfo field)
+                    {
+                        value = field.GetValue(message.data);
+                        memberType = field.FieldType;
+                    }
+                    else if (member is PropertyInfo property && property.CanRead)
+                    {
+                        try
+                        {
+                            value = property.GetValue(message.data);
+                            memberType = property.PropertyType;
+                        }
+                        catch { continue; } // Skip properties that throw exceptions
+                    }
+
+                    if (memberType != null)
+                    {
+                        var typeName = memberType.ToString().Replace("System.", "");
+                        var item = new
+                        {
+                            Field = member.Name,
+                            Value = value?.ToString() ?? "null",
+                            Type = typeName,
+                            IsProperty = member is PropertyInfo
+                        };
+
+                        fieldsListView.Items.Add(item);
+
+                        // Restore selection if previously selected
+                        if (selectedFields.Contains(member.Name))
+                        {
+                            fieldsListView.SelectedItems.Add(item);
+                        }
+                    }
                 }
             }
         }
@@ -414,4 +440,34 @@ public partial class MessageDetailsControl : UserControl
             return null;
         }
     }
+
+    private DateTime _lastUpdate = DateTime.MinValue;
+
+    public enum FieldType
+    {
+        Numeric,
+        Text,
+        Enum,
+        Array,
+        Custom
+    }
+
+    public enum UpdateStrategy
+    {
+        OnChange,
+        Periodic,
+        Manual
+    }
+
+    private readonly record struct FieldMetadata
+    {
+        public FieldType Type { get; init; }
+        public bool IsReadOnly { get; init; }
+        public string DisplayName { get; init; }
+        public string Description { get; init; }
+    }
+
+    // Performans için yeni yapılar
+    private readonly ConcurrentDictionary<string, FieldMetadata> _fieldMetadata = new();
+    private readonly ConcurrentDictionary<string, Func<object, string>> _valueFormatters = new();
 }
