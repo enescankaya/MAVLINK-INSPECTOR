@@ -4,6 +4,7 @@ using System.Windows.Media;
 using System.Collections.Concurrent;
 using System.Windows.Threading;
 using System.Collections.Generic;
+using System.Reflection;
 
 namespace MavlinkInspector.Controls;
 
@@ -209,26 +210,49 @@ public partial class MessageDetailsControl : UserControl
 
         fieldsListView.Items.Clear();
 
-        // Update fields
-        var fields = message.data.GetType().GetFields();
-        foreach (var field in fields)
+        // Fields ve Properties'i birlikte al
+        var members = message.data.GetType()
+            .GetMembers(BindingFlags.Public | BindingFlags.Instance)
+            .Where(m => m.MemberType == MemberTypes.Field || m.MemberType == MemberTypes.Property);
+
+        foreach (var member in members)
         {
-            var value = field.GetValue(message.data);
-            var typeName = field.FieldType.ToString().Replace("System.", "");
+            object? value = null;
+            Type? memberType = null;
 
-            var item = new
+            if (member is FieldInfo field)
             {
-                Field = field.Name,
-                Value = value?.ToString() ?? "null",
-                Type = typeName
-            };
-
-            fieldsListView.Items.Add(item);
-
-            // Restore selection if previously selected
-            if (selectedFields.Contains(field.Name))
+                value = field.GetValue(message.data);
+                memberType = field.FieldType;
+            }
+            else if (member is PropertyInfo property && property.CanRead)
             {
-                fieldsListView.SelectedItems.Add(item);
+                try
+                {
+                    value = property.GetValue(message.data);
+                    memberType = property.PropertyType;
+                }
+                catch { continue; } // Skip properties that throw exceptions
+            }
+
+            if (memberType != null)
+            {
+                var typeName = memberType.ToString().Replace("System.", "");
+                var item = new
+                {
+                    Field = member.Name,
+                    Value = value?.ToString() ?? "null",
+                    Type = typeName,
+                    IsProperty = member is PropertyInfo
+                };
+
+                fieldsListView.Items.Add(item);
+
+                // Restore selection if previously selected
+                if (selectedFields.Contains(member.Name))
+                {
+                    fieldsListView.SelectedItems.Add(item);
+                }
             }
         }
     }
@@ -306,7 +330,10 @@ public partial class MessageDetailsControl : UserControl
                typeName.Contains("Double") ||
                typeName.Contains("Decimal") ||
                typeName.Contains("Single") ||
-               typeName.Contains("Byte");
+               typeName.Contains("Byte") ||
+               typeName.Contains("sbyte") ||
+               typeName.Contains("long") ||
+               typeName.Contains("short");
     }
 
     public void StopUpdates()
@@ -343,6 +370,48 @@ public partial class MessageDetailsControl : UserControl
         catch (Exception)
         {
             // Hata durumunda sessizce devam et
+        }
+    }
+
+    public MAVLink.MAVLinkMessage? GetCurrentMessage()
+    {
+        return _currentMessage;
+    }
+
+    private double? GetFieldValue(object data, string memberName)
+    {
+        try
+        {
+            var type = data.GetType();
+
+            // Önce field olarak dene
+            var field = type.GetField(memberName);
+            if (field != null)
+            {
+                var value = field.GetValue(data);
+                return value != null ? Convert.ToDouble(value) : null;
+            }
+
+            // Field bulunamadıysa property olarak dene
+            var property = type.GetProperty(memberName);
+            if (property != null && property.CanRead)
+            {
+                try
+                {
+                    var value = property.GetValue(data);
+                    return value != null ? Convert.ToDouble(value) : null;
+                }
+                catch
+                {
+                    return null; // Property okuma hatası durumunda null dön
+                }
+            }
+
+            return null;
+        }
+        catch
+        {
+            return null;
         }
     }
 }

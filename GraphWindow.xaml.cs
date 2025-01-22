@@ -908,13 +908,32 @@ namespace MavlinkInspector
         {
             try
             {
-                var field = data.GetType().GetField(fieldName);
-                if (field == null) return null;
+                var type = data.GetType();
 
-                var value = field.GetValue(data);
-                if (value == null) return null;
+                // Önce field olarak dene
+                var field = type.GetField(fieldName);
+                if (field != null)
+                {
+                    var value = field.GetValue(data);
+                    if (value != null) return Convert.ToDouble(value);
+                }
 
-                return Convert.ToDouble(value);
+                // Field bulunamadıysa property olarak dene 
+                var property = type.GetProperty(fieldName);
+                if (property != null && property.CanRead)
+                {
+                    try
+                    {
+                        var value = property.GetValue(data);
+                        if (value != null) return Convert.ToDouble(value);
+                    }
+                    catch
+                    {
+                        // Property okuma hatası
+                    }
+                }
+
+                return null;
             }
             catch
             {

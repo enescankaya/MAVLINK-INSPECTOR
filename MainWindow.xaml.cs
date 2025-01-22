@@ -1216,12 +1216,22 @@ public partial class MainWindow : Window
     /// </summary>
     private void InitializeUpdateIntervalComboBox()
     {
-        // Direkt olarak ComboBoxItem'lar oluştur
-        UpdateIntervalComboBox.Items.Add(new ComboBoxItem { Content = "100" });
-        UpdateIntervalComboBox.Items.Add(new ComboBoxItem { Content = "200" });
-        UpdateIntervalComboBox.Items.Add(new ComboBoxItem { Content = "500" });
-        UpdateIntervalComboBox.Items.Add(new ComboBoxItem { Content = "1000" });
-        UpdateIntervalComboBox.SelectedIndex = 1; // 200ms varsayılan
+        // Combobox'ı temizle ve yeni değerleri ekle
+        UpdateIntervalComboBox.Items.Clear();
+        var intervals = new[] { 100, 200, 500, 1000 };
+
+        foreach (var interval in intervals)
+        {
+            UpdateIntervalComboBox.Items.Add(new ComboBoxItem
+            {
+                Content = interval.ToString(),
+                Tag = interval
+            });
+        }
+
+        // Varsayılan olarak 200ms seç
+        UpdateIntervalComboBox.SelectedIndex = 1;
+        UPDATE_INTERVAL_MS = 200;
     }
 
     /// <summary>
@@ -1232,20 +1242,29 @@ public partial class MainWindow : Window
     private void UpdateIntervalComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (UpdateIntervalComboBox.SelectedItem is ComboBoxItem item &&
-            int.TryParse(item.Content.ToString(), out int newInterval))
+            item.Tag is int newInterval)
         {
             // Timer'ları durdur
-            _treeViewUpdateTimer.Stop();
-            _detailsUpdateTimer.Stop();
+            _treeViewUpdateTimer?.Stop();
+            _detailsUpdateTimer?.Stop();
 
             // Yeni interval değerini ayarla
             UPDATE_INTERVAL_MS = newInterval;
 
             // Timer'ları yeni interval ile yapılandır
-            _treeViewUpdateTimer.Interval = TimeSpan.FromMilliseconds(UPDATE_INTERVAL_MS);
-            _detailsUpdateTimer.Interval = TimeSpan.FromMilliseconds(UPDATE_INTERVAL_MS);
+            if (_treeViewUpdateTimer != null)
+            {
+                _treeViewUpdateTimer.Interval = TimeSpan.FromMilliseconds(UPDATE_INTERVAL_MS);
+                _treeViewUpdateTimer.Start();
+            }
 
-            // Tüm açık sekmelerin timer'larını güncelle
+            if (_detailsUpdateTimer != null)
+            {
+                _detailsUpdateTimer.Interval = TimeSpan.FromMilliseconds(UPDATE_INTERVAL_MS);
+                _detailsUpdateTimer.Start();
+            }
+
+            // Tüm açık sekmelerdeki kontrolleri güncelle
             foreach (TabItem tab in messageTabControl.Items)
             {
                 if (tab.Content is MessageDetailsControl control)
@@ -1254,13 +1273,12 @@ public partial class MainWindow : Window
                 }
             }
 
+            // PacketInspector ve diğer timer'ları da güncelle
+            _timer.Interval = TimeSpan.FromMilliseconds(UPDATE_INTERVAL_MS);
+
             // Zaman damgalarını sıfırla
             _lastTreeViewUpdate = DateTime.Now;
             _lastDetailsUpdate = DateTime.Now;
-
-            // Timer'ları yeniden başlat
-            _treeViewUpdateTimer.Start();
-            _detailsUpdateTimer.Start();
         }
     }
 
@@ -1995,7 +2013,10 @@ public partial class MainWindow : Window
     // Update the GraphMenuItem_Click method to show a visual feedback
     private void GraphMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        if (_selectedMessages.Count == 0 || fieldsListView.SelectedItems.Count == 0)
+        // TreeView seçim kontrolünü kaldır
+
+        // Seçili fieldları kontrol et
+        if (fieldsListView.SelectedItems.Count == 0)
         {
             MessageBoxService.ShowWarning("Please select at least one field to graph.", this);
             return;
@@ -2004,42 +2025,43 @@ public partial class MainWindow : Window
         var fieldsToGraph = new List<(byte sysid, byte compid, uint msgid, string field)>();
         var invalidFields = new List<string>();
 
-        foreach (dynamic selectedField in fieldsListView.SelectedItems)
+        // Seçili mesajı al
+        if (_currentlyDisplayedMessage != null)
         {
-            string fieldName = selectedField.Field;
-            var fieldType = selectedField.Type.ToString();
-
-            if (IsNumericType(fieldType))
+            foreach (dynamic selectedField in fieldsListView.SelectedItems)
             {
-                foreach (var message in _selectedMessages)
+                string fieldName = selectedField.Field;
+                var fieldType = selectedField.Type.ToString();
+
+                if (IsNumericType(fieldType))
                 {
                     fieldsToGraph.Add((
-                        message.sysid,
-                        message.compid,
-                        message.msgid,
+                        _currentlyDisplayedMessage.sysid,
+                        _currentlyDisplayedMessage.compid,
+                        _currentlyDisplayedMessage.msgid,
                         fieldName
                     ));
                 }
+                else
+                {
+                    invalidFields.Add($"{fieldName} ({fieldType})");
+                }
             }
-            else
+
+            if (invalidFields.Any())
             {
-                invalidFields.Add($"{fieldName} ({fieldType})");
+                MessageBoxService.ShowWarning(
+                    $"The following fields cannot be graphed because they are not numeric:\n\n{string.Join("\n", invalidFields)}",
+                    this,
+                    "Invalid Fields"
+                );
             }
-        }
 
-        if (invalidFields.Any())
-        {
-            MessageBoxService.ShowWarning(
-                $"The following fields cannot be graphed because they are not numeric:\n\n{string.Join("\n", invalidFields)}",
-                this,
-                "Invalid Fields"
-            );
-        }
-
-        if (fieldsToGraph.Count > 0)
-        {
-            var graphWindow = new GraphWindow(_mavInspector, fieldsToGraph);
-            graphWindow.Show();
+            if (fieldsToGraph.Count > 0)
+            {
+                var graphWindow = new GraphWindow(_mavInspector, fieldsToGraph);
+                graphWindow.Show();
+            }
         }
     }
 
