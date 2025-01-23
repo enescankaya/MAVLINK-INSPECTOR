@@ -10,10 +10,13 @@ using System.Collections.Concurrent; // ConcurrentDictionary için ekleyin
 using System.Windows.Interop; // HwndSource için
 using System.Threading.Channels; // Channel için
 using System.Windows.Input; // MouseWheelEventArgs için
+using System.Windows.Shapes; // Rectangle için
 using Microsoft.Win32; // SaveFileDialog için   
 using System.IO; // File işlemleri için
+using System.Drawing.Imaging; // ImageFormat için
 using System.Windows.Media.Imaging; // RenderTargetBitmap için
 using MavlinkInspector.Services;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace MavlinkInspector
 {
@@ -40,11 +43,18 @@ namespace MavlinkInspector
     public partial class GraphWindow : Window, IDisposable
     {
         // Constants
+        private const int BATCH_SIZE = 100;
+        private const int PROCESS_INTERVAL_MS = 16; // ~60 FPS
         private const int MIN_UPDATE_INTERVAL = 16;
         private const int DEFAULT_UPDATE_INTERVAL = 50;
         private const int MAX_BATCH_SIZE = 20;
         private const int RENDER_TIMEOUT_MS = 100;
         private const int RESIZE_DELAY = 100;
+        private const double MIN_ZOOM_X = 10; // Minimum 10 sample gösterilecek
+        private const double MAX_ZOOM_X = 1000; // Maximum 1000 sample gösterilecek
+        private const double MIN_ZOOM_Y = 0.1; // Minimum Y zoom seviyesi
+        private const double MAX_ZOOM_Y = 10; // Maximum Y zoom seviyesi
+
         // Thread-safe collections
         private readonly ConcurrentDictionary<string, FieldStatistics> _fieldStats = new();
         private static readonly HashSet<GraphWindow> _activeWindows = new();
@@ -861,6 +871,7 @@ namespace MavlinkInspector
             {
                 _batchProcessor?.Dispose();
                 _cts?.Dispose();
+                // ...existing cleanup code...
             }
             catch { }
         }

@@ -10,23 +10,8 @@ namespace MavlinkInspector;
 /// </summary>
 public class ConnectionManager : IAsyncDisposable
 {
-    private const int BUFFER_SIZE = 16384;
-    private const int MAX_QUEUE_SIZE = 1000;
-    private readonly record struct ConnectionConfig
-    {
-
-        public int BufferSize { get; init; }
-        public TimeSpan Timeout { get; init; }
-    }
-
     private IConnection? _connection;
-    private readonly Channel<byte[]> _dataChannel = Channel.CreateBounded<byte[]>(
-        new BoundedChannelOptions(MAX_QUEUE_SIZE)
-        {
-            FullMode = BoundedChannelFullMode.DropOldest,
-            SingleReader = true,
-            SingleWriter = true
-        });
+    private readonly Channel<byte[]> _dataChannel;
     private CancellationTokenSource? _cts;
 
     public bool IsConnected => _connection?.IsConnected ?? false;
@@ -74,12 +59,13 @@ public class ConnectionManager : IAsyncDisposable
         if (_connection == null) return;
 
         var parser = new MAVLink.MavlinkParse();
+        var buffer = new List<byte>();
 
         try
         {
             await foreach (var data in _connection.DataChannel.ReadAllAsync(ct))
             {
-                var buffer = new List<byte>(data);
+                buffer.AddRange(data);
 
                 while (buffer.Count >= 8)
                 {
@@ -105,9 +91,9 @@ public class ConnectionManager : IAsyncDisposable
                     }
                 }
 
-                if (buffer.Count > BUFFER_SIZE)
+                if (buffer.Count > 16384)
                 {
-                    buffer.RemoveRange(0, buffer.Count - BUFFER_SIZE);
+                    buffer.RemoveRange(0, buffer.Count - 16384);
                 }
             }
         }
