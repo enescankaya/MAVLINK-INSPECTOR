@@ -335,10 +335,7 @@ public partial class MainWindow : Window
                 if (selectedType == "GCS UI")
                 {
                     // GCS UI seçildiğinde sadece mesaj göster
-                    MessageBoxService.ShowInfo("GCS UI Connection Opened", this);
-                    ConnectButton.Content = "Disconnect";
-                    UpdateUIState(true);
-                    statusConnectionText.Text = "Connected";
+                    MessageBoxService.ShowInfo("GCS UI Connection is not available for standard mode please support", this);
                     return;
                 }
 
@@ -550,6 +547,7 @@ public partial class MainWindow : Window
         _pendingUpdates.Enqueue(() => {
             try
             {
+
                 // Benzersiz anahtar oluştur
                 var messageKey = (uint)((message.sysid << 16) | (message.compid << 8) | message.msgid);
                 var bps = _mavInspector.GetBps(message.sysid, message.compid, message.msgid);
@@ -935,6 +933,7 @@ public partial class MainWindow : Window
             _messagesSinceLastUpdate = 0;
             return;
         }
+
         if (elapsed >= 1)
         {
             var rate = _messagesSinceLastUpdate / elapsed;
