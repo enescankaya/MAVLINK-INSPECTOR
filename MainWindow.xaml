@@ -2,624 +2,686 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="MAVLink Inspector" Height="700" Width="1465"
-        Background="{StaticResource WindowBackground}" 
-        Closing="Window_Closing" Icon="Resources/inspection.png">
-    <Grid Margin="10">
-        <Grid.Resources>
-            <Style TargetType="TreeViewItem">
-                <Setter Property="IsExpanded" Value="True"/>
-            </Style>
-        </Grid.Resources>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+        WindowStyle="None" 
+        ResizeMode="CanResizeWithGrip"
+        AllowsTransparency="True"
+        Background="Transparent"
+        BorderThickness="0"
+        BorderBrush="{StaticResource BorderColor}"
+        Icon="Resources/inspection.png">
+    <Border CornerRadius="18" Background="{StaticResource WindowBackground}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="32"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5">
-            <!-- Connection Settings GroupBox -->
-            <GroupBox Header="Connection Settings" Style="{StaticResource ModernGroupBox}">
-                <StackPanel Orientation="Horizontal">
-                    <ComboBox Width="120" Name="ConnectionTypeComboBox" Margin="5"
-                             Style="{StaticResource ModernComboBox}"
-                             SelectionChanged="ConnectionTypeComboBox_SelectionChanged">
-                        <ComboBoxItem Style="{StaticResource ModernComboBoxItem}" Content="GCS UI"/>
-                        <ComboBoxItem Style="{StaticResource ModernComboBoxItem}" Content="Serial"/>
-                        <ComboBoxItem Style="{StaticResource ModernComboBoxItem}" Content="TCP"/>
-                        <ComboBoxItem Style="{StaticResource ModernComboBoxItem}" Content="UDP"/>
-                    </ComboBox>
-
-                    <StackPanel Name="SerialPanel" Orientation="Horizontal">
-                        <ComboBox Width="120" Name="PortComboBox" Margin="5"
-                                 Style="{StaticResource ModernComboBox}">
-                            <ComboBox.ItemContainerStyle>
-                                <Style TargetType="ComboBoxItem" BasedOn="{StaticResource ModernComboBoxItem}"/>
-                            </ComboBox.ItemContainerStyle>
-                        </ComboBox>
-                        <ComboBox Width="120" Name="BaudRateComboBox" Margin="5"
-                                 Style="{StaticResource ModernComboBox}">
-                            <ComboBox.ItemContainerStyle>
-                                <Style TargetType="ComboBoxItem" BasedOn="{StaticResource ModernComboBoxItem}"/>
-                            </ComboBox.ItemContainerStyle>
-                        </ComboBox>
-                    </StackPanel>
-
-                    <StackPanel Name="NetworkPanel" Orientation="Horizontal" Visibility="Collapsed" >
-                        <TextBox Width="120" Name="IpAddressTextBox" Margin="5" Text="127.0.0.1"
-                                Style="{StaticResource ModernTextBox}" VerticalContentAlignment="Bottom"
-/>
-                        <TextBox Width="80" Name="PortTextBox" Margin="5" Text="5762"
-                                Style="{StaticResource ModernTextBox}"  VerticalContentAlignment="Bottom"
-/>
-                    </StackPanel>
-
-                    <Button Name="ConnectButton" Content="Connect" Width="100" Margin="5"
-                            Style="{StaticResource ModernButton}"
-                            Click="ConnectButton_Click"/>
-                </StackPanel>
-            </GroupBox>
-
-            <!-- Display Settings GroupBox -->
-            <GroupBox Header="Display Options" Style="{StaticResource ModernGroupBox}">
-                <StackPanel Orientation="Horizontal">
-                    <CheckBox Name="ShowGCSTraffic" Content="Show GCS Traffic" Margin="5"
-                             Style="{StaticResource ModernCheckBox}"/>
-                    <Button Name="ResetButton" Content="Reset" Width="80" Margin="5"
-                            Style="{StaticResource ModernButton}"
-                            Click="ResetButton_Click"/>
-
-                </StackPanel>
-            </GroupBox>
-
-            <!-- Custom Message Definitions GroupBox -->
-            <GroupBox Header="Message Definitions" Style="{StaticResource ModernGroupBox}">
-                <StackPanel Orientation="Horizontal">
-                    <Button Name="LoadCustomDllButton" 
-                            Content="Load DLL" 
-                            Width="120" 
-                            Margin="5"
-                            Style="{StaticResource ModernButton}"
-                            Click="LoadCustomDllButton_Click"/>
-                    <Button Name="RestoreDefaultButton" 
-                            Content="Default" 
-                            Width="120" 
-                            Margin="5"
-                            Style="{StaticResource ModernButton}"
-                            Click="RestoreDefaultButton_Click"
-                            IsEnabled="False"/>
-                </StackPanel>
-            </GroupBox>
-
-            <!-- Update Settings GroupBox -->
-            <GroupBox Header="Update Settings" Style="{StaticResource ModernGroupBox}">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Update Interval:" 
-                             Foreground="{StaticResource TextColor}"
-                             VerticalAlignment="Center" 
-                             Margin="5,0"/>
-                    <ComboBox Name="UpdateIntervalComboBox" 
-                             Style="{StaticResource ModernComboBox}"
-                             Width="80" 
-                             Margin="5"
-                             SelectionChanged="UpdateIntervalComboBox_SelectionChanged">
-                        <ComboBox.ItemContainerStyle>
-                            <Style TargetType="ComboBoxItem" BasedOn="{StaticResource ModernComboBoxItem}"/>
-                        </ComboBox.ItemContainerStyle>
-                    </ComboBox>
-                    <TextBlock Text="ms" 
-                             Foreground="{StaticResource TextColor}"
-                             VerticalAlignment="Center"
-                             Margin="0,0,5,0"/>
-                </StackPanel>
-            </GroupBox>
-        </StackPanel>
-
-        <Grid Grid.Row="1">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" MinWidth="300"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="*" MinWidth="300"/>
-            </Grid.ColumnDefinitions>
-
-            <!-- Sol Panel (TreeView ve Selected Fields) -->
-            <DockPanel Grid.Column="0" LastChildFill="True" Margin="0,0,0,0">
-                <!-- TreeView Üst Kısmı -->
-                <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
+            <!-- Title Bar -->
+            <Border Grid.Row="0" 
+                    Background="{StaticResource PanelBackground}"
+                    CornerRadius="8,8,0,0"
+                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid Margin="8,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Text="Right-click on a message to open in new tab"
-                              Grid.Column="0"
-                              Foreground="#8B949E"
-                              FontSize="12"
-                              HorizontalAlignment="Left"
-                              FontStyle="Italic"/>
+                    <!-- Window Icon -->
+                    <Image Grid.Column="0" 
+                           Source="Resources/inspection.png"
+                           Width="16" Height="16"
+                           Margin="4,0"/>
 
+                    <!-- Window Title -->
+                    <TextBlock Grid.Column="1"
+                             Text="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=Title}"
+                             Foreground="{StaticResource TextColor}"
+                             VerticalAlignment="Center"
+                             Margin="8,0"/>
+
+                    <!-- Window Buttons -->
                     <StackPanel Grid.Column="2" 
-                                Orientation="Horizontal" 
-                                HorizontalAlignment="Right" Margin="0,0,10,0">
-                        <TextBlock Text="Sort by:" 
-                                  Foreground="#8B949E"
-                                  FontSize="12"
-                                  VerticalAlignment="Center"
-                                  Margin="0,0,5,0"/>
-                        <Button x:Name="SortByName" 
-                                Content="Name"
-                                Style="{StaticResource ModernButton}"
-                                Height="24" 
-                                Width="60"
-                                Margin="0,0,5,0"
-                                Click="SortByName_Click" Padding="0"/>
-                        <Button x:Name="SortByHz" 
-                                Content="Hz"
-                                Style="{StaticResource ModernButton}"
-                                Height="24" 
-                                Width="60"
-                                Margin="0,0,5,0"
-                                Click="SortByHz_Click" Padding="0"/>
-                        <Button x:Name="SortByBps" 
-                                Content="Bps"
-                                Style="{StaticResource ModernButton}"
-                                Height="24" 
-                                Width="60"
-                                Click="SortByBps_Click" Padding="0"/>
+                              Orientation="Horizontal"
+                              HorizontalAlignment="Right">
+                        <Button Width="32" Height="32"
+                                Style="{StaticResource WindowControlButton}"
+                                Content="&#xE921;"
+                                Click="MinimizeButton_Click"/>
+
+                        <Button Width="32" Height="32"
+                                Style="{StaticResource WindowControlButton}"
+                                Content="&#xE922;"
+                                Click="MaximizeButton_Click"/>
+
+                        <Button Width="32" Height="32"
+                                Style="{StaticResource WindowControlButton}"
+                                Content="&#xE8BB;"
+                                Click="CloseButton_Click"/>
                     </StackPanel>
                 </Grid>
+            </Border>
 
-                <!-- Selected Fields Panel -->
-                <Border DockPanel.Dock="Bottom" 
-                        Background="{StaticResource ControlBackground}"
-                        BorderBrush="{StaticResource BorderColor}"
-                        BorderThickness="1"
-                        CornerRadius="4"
-                        Margin="0,0,0,0"
-                        x:Name="selectedFieldsBorder"
-                        Visibility="Collapsed">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*" MinHeight="50" MaxHeight="150"/>
-                        </Grid.RowDefinitions>
-
-                        <!-- Header -->
-                        <DockPanel Grid.Row="0" 
-                                  Background="{StaticResource PanelBackground}"
-                                  LastChildFill="False">
-                            <TextBlock Text="Selected Fields" 
-                                     Margin="10,8"
-                                     FontWeight="SemiBold"
-                                     Foreground="{StaticResource SubTextColor}"/>
-                            <Button DockPanel.Dock="Right"
-                                    Content="Clear All"
-                                    Style="{StaticResource ModernButton}"
-                                    Height="24" Width="70"
-                                    Margin="5,4" FontSize="10" Padding="0" 
-                                    Click="ClearAllFields_Click"/>
-                        </DockPanel>
-
-                        <!-- Fields List -->
-                        <ScrollViewer Grid.Row="1" 
-                                    VerticalScrollBarVisibility="Auto"
-                                    HorizontalScrollBarVisibility="Disabled">
-                            <ItemsControl x:Name="selectedFieldsPanel" 
-                                        Margin="5">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <WrapPanel/>
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Background="{StaticResource PanelBackground}"
-                                                BorderBrush="{StaticResource BorderColor}"
-                                                BorderThickness="1"
-                                                CornerRadius="4"
-                                                Margin="2"
-                                                Tag= "{Binding}"
-                                                MouseDown="SelectedField_MouseDown">
-                                            <DockPanel Margin="5,2">
-                                                <Button DockPanel.Dock="Right"
-                                                        Content="✕"
-                                                        Style="{StaticResource ModernButton}"
-                                                        Height="20" Width="20"
-                                                        Margin="5,0,0,0"
-                                                        Padding="0"
-                                                        Click="RemoveField_Click"
-                                                        CommandParameter="{Binding}"/>
-                                                <Border DockPanel.Dock="Left" 
-                                                        Width="3" Height="16"
-                                                        CornerRadius="2"
-                                                        Margin="0,0,5,0"
-                                                        VerticalAlignment="Center"/>
-                                                <TextBlock Text="{Binding DisplayText}"
-                                                         Foreground="{StaticResource TextColor}"
-                                                         VerticalAlignment="Center"/>
-                                            </DockPanel>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                    </Grid>
-                </Border>
-
-                <!-- TreeView -->
-                <TreeView Name="treeView1"
-                          Margin="0,0,0,10"
-                          Background="{StaticResource PanelBackground}"
-                          BorderThickness="1"
-                          BorderBrush="{StaticResource BorderColor}"
-                          Padding="5"
-                          ScrollViewer.VerticalScrollBarVisibility="Visible"
-                          VirtualizingStackPanel.IsVirtualizing="True"
-                          VirtualizingStackPanel.VirtualizationMode="Recycling"
-                          Height="Auto"
-                          MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Grid}}"
-                          SelectedItemChanged="TreeView_SelectedItemChanged">
-                    <TreeView.Template>
-                        <ControlTemplate TargetType="{x:Type TreeView}">
-                            <ScrollViewer CanContentScroll="True" 
-                                        Focusable="False"
-                                        Padding="{TemplateBinding Padding}"
-                                        VerticalScrollBarVisibility="Visible">
-                                <ItemsPresenter/>
-                            </ScrollViewer>
-                        </ControlTemplate>
-                    </TreeView.Template>
-                    <TreeView.Resources>
-                        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" 
-                                        Color="#44FFFFFF"/>
-                        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" 
-                                        Color="White"/>
-                        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" 
-                                        Color="#22FFFFFF"/>
-                        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" 
-                                        Color="LightGray"/>
-                    </TreeView.Resources>
-                </TreeView>
-            </DockPanel>
-
-            <!-- Separator -->
-            <GridSplitter Grid.Column="1" 
-              Width="14" 
-              Background="White" 
-              HorizontalAlignment="Center"
-              VerticalAlignment="Stretch"
-              ResizeDirection="Columns"
-              ShowsPreview="True" >
-                <GridSplitter.Template>
-                    <ControlTemplate TargetType="GridSplitter">
-                        <Border Width="14" 
-                    CornerRadius="2"
-                    Background="{StaticResource AccentColor}" 
-                    BorderBrush="{StaticResource BorderColor}" 
-                    BorderThickness="2"
-                    VerticalAlignment="Stretch">
-                            <StackPanel Orientation="Vertical" 
-                            HorizontalAlignment="Center" 
-                            VerticalAlignment="Center">
-                                <!-- Dekoratif Noktalar -->
-                                <Ellipse Width="4" 
-                             Height="4" 
-                             Fill="White" 
-                             Margin="0,2"/>
-                                <Ellipse Width="4" 
-                             Height="4" 
-                             Fill="White" 
-                             Margin="0,2"/>
-                                <Ellipse Width="4" 
-                             Height="4" 
-                             Fill="White" 
-                             Margin="0,2"/>
-                            </StackPanel>
-                        </Border>
-                    </ControlTemplate>
-                </GridSplitter.Template>
-            </GridSplitter>
-
-
-            <!-- Message Details güncellemesi -->
-            <TabControl x:Name="messageTabControl" Grid.Column="2" 
-                       Background="{StaticResource PanelBackground}"
-                       BorderBrush="{StaticResource BorderColor}"
-                       BorderThickness="1">
-                <TabControl.Resources>
-                    <Style TargetType="TabItem">
-                        <Setter Property="Template">
-                            <Setter.Value>
-                                <ControlTemplate TargetType="TabItem">
-                                    <Border x:Name="Border" BorderThickness="1,1,1,0" 
-                                            BorderBrush="{StaticResource BorderColor}"
-                                            CornerRadius="4,4,0,0" Margin="2,0,2,0">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <ContentPresenter x:Name="ContentSite"
-                                                            ContentSource="Header"
-                                                            Margin="10,2"
-                                                            VerticalAlignment="Center"/>
-                                            <Button x:Name="CloseButton" 
-                                                Grid.Column="1"
-                                                Content="✕"
-                                                Width="20" Height="20"
-                                                Margin="0,0,5,0"
-                                                BorderThickness="0" Click="CloseTab_Click">
-                                                <Button.Style>
-                                                    <Style TargetType="Button">
-                                                        <Setter Property="Background" Value="Transparent"/>
-                                                        <Setter Property="Foreground" Value="White"/>
-                                                        <Setter Property="Template">
-                                                            <Setter.Value>
-                                                                <ControlTemplate TargetType="Button">
-                                                                    <Border x:Name="border" 
-                                Background="{TemplateBinding Background}"
-                                BorderThickness="{TemplateBinding BorderThickness}">
-                                                                        <ContentPresenter HorizontalAlignment="Center" 
-                                            VerticalAlignment="Center"/>
-                                                                    </Border>
-                                                                </ControlTemplate>
-                                                            </Setter.Value>
-                                                        </Setter>
-                                                        <Style.Triggers>
-                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter Property="Foreground" Value="Red"/>
-                                                                <Setter Property="Background" Value="Transparent"/>
-                                                            </Trigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Button.Style>
-                                            </Button>
-
-                                        </Grid>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsSelected" Value="True">
-                                            <Setter TargetName="Border" Property="Background" Value="{StaticResource ControlBackground}"/>
-                                            <Setter TargetName="CloseButton" Property="Visibility" Value="Visible"/>
-                                        </Trigger>
-                                        <Trigger Property="IsSelected" Value="False">
-                                            <Setter TargetName="Border" Property="Background" Value="{StaticResource PanelBackground}"/>
-                                        </Trigger>
-                                        <MultiTrigger>
-                                            <MultiTrigger.Conditions>
-                                                <Condition Property="IsMouseOver" Value="True"/>
-                                                <Condition Property="IsSelected" Value="False"/>
-                                            </MultiTrigger.Conditions>
-                                            <Setter TargetName="Border" Property="Background" Value="{StaticResource ControlBackground}"/>
-                                            <Setter TargetName="CloseButton" Property="Visibility" Value="Visible"/>
-                                        </MultiTrigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Setter.Value>
-                        </Setter>
-                        <Setter Property="Foreground" Value="{StaticResource TextColor}"/>
-                        <Setter Property="Background" Value="{StaticResource PanelBackground}"/>
-                        <Setter Property="HeaderTemplate">
-                            <Setter.Value>
-                                <DataTemplate>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{Binding}"
-                                                 Foreground="{StaticResource TextColor}"
-                                                 VerticalAlignment="Center"
-                                                 Margin="5,0"/>
-                                    </Grid>
-                                </DataTemplate>
-                            </Setter.Value>
-                        </Setter>
+            <!-- Main Content -->
+            <Grid Grid.Row="1" Margin="10">
+                <Grid.Resources>
+                    <Style TargetType="TreeViewItem">
+                        <Setter Property="IsExpanded" Value="True"/>
                     </Style>
-                </TabControl.Resources>
+                </Grid.Resources>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-                <TabItem x:Name="defaultTab" Header="Message Details">
-                    <ScrollViewer HorizontalScrollBarVisibility="Hidden" 
-                                VerticalScrollBarVisibility="Visible" 
-                                CanContentScroll="True">
-                        <!-- Mevcut message details içeriği buraya -->
-                        <StackPanel Margin="5">
-                            <!-- Header Section -->
-                            <Border Background="{StaticResource ControlBackground}" 
-                                CornerRadius="4" 
-                                Padding="10" 
-                                Margin="0,0,0,10"
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5">
+                    <!-- Connection Settings GroupBox -->
+                    <GroupBox Header="Connection Settings" Style="{StaticResource ModernGroupBox}">
+                        <StackPanel Orientation="Horizontal">
+                            <ComboBox Width="120" Name="ConnectionTypeComboBox" Margin="5"
+                                     Style="{StaticResource ModernComboBox}"
+                                     SelectionChanged="ConnectionTypeComboBox_SelectionChanged">
+                                <ComboBoxItem Style="{StaticResource ModernComboBoxItem}" Content="GCS UI"/>
+                                <ComboBoxItem Style="{StaticResource ModernComboBoxItem}" Content="Serial"/>
+                                <ComboBoxItem Style="{StaticResource ModernComboBoxItem}" Content="TCP"/>
+                                <ComboBoxItem Style="{StaticResource ModernComboBoxItem}" Content="UDP"/>
+                            </ComboBox>
+
+                            <StackPanel Name="SerialPanel" Orientation="Horizontal">
+                                <ComboBox Width="120" Name="PortComboBox" Margin="5"
+                                         Style="{StaticResource ModernComboBox}">
+                                    <ComboBox.ItemContainerStyle>
+                                        <Style TargetType="ComboBoxItem" BasedOn="{StaticResource ModernComboBoxItem}"/>
+                                    </ComboBox.ItemContainerStyle>
+                                </ComboBox>
+                                <ComboBox Width="120" Name="BaudRateComboBox" Margin="5"
+                                         Style="{StaticResource ModernComboBox}">
+                                    <ComboBox.ItemContainerStyle>
+                                        <Style TargetType="ComboBoxItem" BasedOn="{StaticResource ModernComboBoxItem}"/>
+                                    </ComboBox.ItemContainerStyle>
+                                </ComboBox>
+                            </StackPanel>
+
+                            <StackPanel Name="NetworkPanel" Orientation="Horizontal" Visibility="Collapsed" >
+                                <TextBox Width="120" Name="IpAddressTextBox" Margin="5" Text="127.0.0.1"
+                                        Style="{StaticResource ModernTextBox}" VerticalContentAlignment="Bottom"
+    />
+                                <TextBox Width="80" Name="PortTextBox" Margin="5" Text="5762"
+                                        Style="{StaticResource ModernTextBox}"  VerticalContentAlignment="Bottom"
+    />
+                            </StackPanel>
+
+                            <Button Name="ConnectButton" Content="Connect" Width="100" Margin="5"
+                                    Style="{StaticResource ModernButton}"
+                                    Click="ConnectButton_Click"/>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <!-- Display Settings GroupBox -->
+                    <GroupBox Header="Display Options" Style="{StaticResource ModernGroupBox}">
+                        <StackPanel Orientation="Horizontal">
+                            <CheckBox Name="ShowGCSTraffic" Content="Show GCS Traffic" Margin="5"
+                                     Style="{StaticResource ModernCheckBox}"/>
+                            <Button Name="ResetButton" Content="Reset" Width="80" Margin="5"
+                                    Style="{StaticResource ModernButton}"
+                                    Click="ResetButton_Click"/>
+
+                        </StackPanel>
+                    </GroupBox>
+
+                    <!-- Custom Message Definitions GroupBox -->
+                    <GroupBox Header="Message Definitions" Style="{StaticResource ModernGroupBox}">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Name="LoadCustomDllButton" 
+                                    Content="Load DLL" 
+                                    Width="120" 
+                                    Margin="5"
+                                    Style="{StaticResource ModernButton}"
+                                    Click="LoadCustomDllButton_Click"/>
+                            <Button Name="RestoreDefaultButton" 
+                                    Content="Default" 
+                                    Width="120" 
+                                    Margin="5"
+                                    Style="{StaticResource ModernButton}"
+                                    Click="RestoreDefaultButton_Click"
+                                    IsEnabled="False"/>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <!-- Update Settings GroupBox -->
+                    <GroupBox Header="Update Settings" Style="{StaticResource ModernGroupBox}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Update Interval:" 
+                                     Foreground="{StaticResource TextColor}"
+                                     VerticalAlignment="Center" 
+                                     Margin="5,0"/>
+                            <ComboBox Name="UpdateIntervalComboBox" 
+                                     Style="{StaticResource ModernComboBox}"
+                                     Width="80" 
+                                     Margin="5"
+                                     SelectionChanged="UpdateIntervalComboBox_SelectionChanged">
+                                <ComboBox.ItemContainerStyle>
+                                    <Style TargetType="ComboBoxItem" BasedOn="{StaticResource ModernComboBoxItem}"/>
+                                </ComboBox.ItemContainerStyle>
+                            </ComboBox>
+                            <TextBlock Text="ms" 
+                                     Foreground="{StaticResource TextColor}"
+                                     VerticalAlignment="Center"
+                                     Margin="0,0,5,0"/>
+                        </StackPanel>
+                    </GroupBox>
+                </StackPanel>
+
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MinWidth="300"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*" MinWidth="300"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Sol Panel (TreeView ve Selected Fields) -->
+                    <DockPanel Grid.Column="0" LastChildFill="True" Margin="0,0,0,0">
+                        <!-- TreeView Üst Kısmı -->
+                        <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Text="Right-click on a message to open in new tab"
+                                      Grid.Column="0"
+                                      Foreground="#8B949E"
+                                      FontSize="12"
+                                      HorizontalAlignment="Left"
+                                      FontStyle="Italic"/>
+
+                            <StackPanel Grid.Column="2" 
+                                        Orientation="Horizontal" 
+                                        HorizontalAlignment="Right" Margin="0,0,10,0">
+                                <TextBlock Text="Sort by:" 
+                                          Foreground="#8B949E"
+                                          FontSize="12"
+                                          VerticalAlignment="Center"
+                                          Margin="0,0,5,0"/>
+                                <Button x:Name="SortByName" 
+                                        Content="Name"
+                                        Style="{StaticResource ModernButton}"
+                                        Height="24" 
+                                        Width="60"
+                                        Margin="0,0,5,0"
+                                        Click="SortByName_Click" Padding="0"/>
+                                <Button x:Name="SortByHz" 
+                                        Content="Hz"
+                                        Style="{StaticResource ModernButton}"
+                                        Height="24" 
+                                        Width="60"
+                                        Margin="0,0,5,0"
+                                        Click="SortByHz_Click" Padding="0"/>
+                                <Button x:Name="SortByBps" 
+                                        Content="Bps"
+                                        Style="{StaticResource ModernButton}"
+                                        Height="24" 
+                                        Width="60"
+                                        Click="SortByBps_Click" Padding="0"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Selected Fields Panel -->
+                        <Border DockPanel.Dock="Bottom" 
+                                Background="{StaticResource ControlBackground}"
                                 BorderBrush="{StaticResource BorderColor}"
-                                BorderThickness="1">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="120"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="120"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="28"/>
-                                        <RowDefinition Height="28"/>
-                                        <RowDefinition Height="28"/>
-                                        <RowDefinition Height="28"/>
-                                        <RowDefinition Height="28"/>
-                                    </Grid.RowDefinitions>
-                                    <!-- Header -->
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Header:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Row="0" Grid.Column="1" x:Name="headerText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Margin="0,0,0,0"
+                                x:Name="selectedFieldsBorder"
+                                Visibility="Collapsed">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*" MinHeight="50" MaxHeight="150"/>
+                                </Grid.RowDefinitions>
 
-                                    <!-- Length -->
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Length:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Row="1" Grid.Column="1" x:Name="lengthText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+                                <!-- Header -->
+                                <DockPanel Grid.Row="0" 
+                                          Background="{StaticResource PanelBackground}"
+                                          LastChildFill="False">
+                                    <TextBlock Text="Selected Fields" 
+                                             Margin="10,8"
+                                             FontWeight="SemiBold"
+                                             Foreground="{StaticResource SubTextColor}"/>
+                                    <Button DockPanel.Dock="Right"
+                                            Content="Clear All"
+                                            Style="{StaticResource ModernButton}"
+                                            Height="24" Width="70"
+                                            Margin="5,4" FontSize="10" Padding="0" 
+                                            Click="ClearAllFields_Click"/>
+                                </DockPanel>
 
-                                    <!-- Sequence -->
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Sequence:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Row="2" Grid.Column="1" x:Name="seqText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
-
-                                    <!-- System ID -->
-                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="System ID:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Row="3" Grid.Column="1" x:Name="sysidText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
-
-                                    <!-- Component ID -->
-                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Component ID:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Row="4" Grid.Column="1" x:Name="compidText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
-
-                                    <!-- Message ID -->
-                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="Message ID:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Row="0" Grid.Column="3" x:Name="msgidText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
-
-                                    <!-- Message Type -->
-                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="Message Type:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Row="1" Grid.Column="3" x:Name="msgTypeText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
-
-                                    <!-- Message Type Name -->
-                                    <TextBlock Grid.Row="2" Grid.Column="2" Text="Message Type Name:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Row="2" Grid.Column="3" x:Name="msgTypeNameText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
-
-                                    <!-- CRC16 -->
-                                    <TextBlock Grid.Row="3" Grid.Column="2" Text="CRC16:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Row="3" Grid.Column="3" x:Name="crc16Text" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
-
-                                    <!-- MAVLink Version -->
-                                    <TextBlock Grid.Row="4" Grid.Column="2" Text="MAVLink Version:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Row="4" Grid.Column="3" x:Name="isMavlink2Text" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
-                                </Grid>
-                            </Border>
-
-                            <!-- Fields Section -->
-                            <TextBlock Text="Message Fields" 
-           FontWeight="SemiBold" 
-           Margin="5,5,5,5" 
-           Foreground="{StaticResource TextColor}"
-           FontSize="13"/>
-
-                            <Border Background="{StaticResource ControlBackground}" 
-                                    CornerRadius="4" 
-                                    Margin="0,5"
-                                    BorderBrush="{StaticResource BorderColor}"
-                                    BorderThickness="1">
-                                <ListView x:Name="fieldsListView" 
-                                        Background="Transparent"
-                                        BorderThickness="0"
-                                        Margin="2"
-                                        SelectionMode="Extended">
-                                    <ListView.View>
-                                        <GridView>
-                                            <GridViewColumn Header="Field" Width="140">
-                                                <GridViewColumn.CellTemplate>
-                                                    <DataTemplate>
-                                                        <TextBlock Text="{Binding Field}" 
+                                <!-- Fields List -->
+                                <ScrollViewer Grid.Row="1" 
+                                            VerticalScrollBarVisibility="Auto"
+                                            HorizontalScrollBarVisibility="Disabled">
+                                    <ItemsControl x:Name="selectedFieldsPanel" 
+                                                Margin="5">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="{StaticResource PanelBackground}"
+                                                        BorderBrush="{StaticResource BorderColor}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="4"
+                                                        Margin="2"
+                                                        Tag= "{Binding}"
+                                                        MouseDown="SelectedField_MouseDown">
+                                                    <DockPanel Margin="5,2">
+                                                        <Button DockPanel.Dock="Right"
+                                                                Content="✕"
+                                                                Style="{StaticResource ModernButton}"
+                                                                Height="20" Width="20"
+                                                                Margin="5,0,0,0"
+                                                                Padding="0"
+                                                                Click="RemoveField_Click"
+                                                                CommandParameter="{Binding}"/>
+                                                        <Border DockPanel.Dock="Left" 
+                                                                Width="3" Height="16"
+                                                                CornerRadius="2"
+                                                                Margin="0,0,5,0"
+                                                                VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{Binding DisplayText}"
                                                                  Foreground="{StaticResource TextColor}"
-                                                                 Padding="0,10,0,0" 
-                                                                 VerticalAlignment="Bottom"/>
-                                                    </DataTemplate>
-                                                </GridViewColumn.CellTemplate>
-                                            </GridViewColumn>
-                                            <GridViewColumn Header="Value" Width="180">
-                                                <GridViewColumn.CellTemplate>
-                                                    <DataTemplate>
-                                                        <TextBlock Text="{Binding Value}" 
-                                                                 Foreground="{StaticResource TextColor}"
-                                                                 Padding="0,10,0,0"
-                                                                 TextWrapping="Wrap" 
-                                                                 VerticalAlignment="Bottom"/>
-                                                    </DataTemplate>
-                                                </GridViewColumn.CellTemplate>
-                                            </GridViewColumn>
-                                            <GridViewColumn Header="Type" Width="120">
-                                                <GridViewColumn.CellTemplate>
-                                                    <DataTemplate>
-                                                        <TextBlock Text="{Binding Type}" 
-                                                                 Foreground="#A0A0A0"
-                                                                 Padding="0,10,0,0" 
-                                                                 VerticalAlignment="Bottom"/>
-                                                    </DataTemplate>
-                                                </GridViewColumn.CellTemplate>
-                                            </GridViewColumn>
-                                        </GridView>
-                                    </ListView.View>
+                                                                 VerticalAlignment="Center"/>
+                                                    </DockPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </Grid>
+                        </Border>
 
-                                    <ListView.Resources>
-                                        <!-- GridViewColumnHeader Style -->
-                                        <Style TargetType="GridViewColumnHeader" >
-                                            <Setter Property="Background" Value="Transparent"/>
-                                            <Setter Property="Foreground" Value="#A0A0A0"/>
-                                            <Setter Property="Height" Value="32"/>
-                                            <Setter Property="Padding" Value="8,0"/>
-                                            <Setter Property="Template">
-                                                <Setter.Value>
-                                                    <ControlTemplate TargetType="GridViewColumnHeader">
-                                                        <Border Background="{TemplateBinding Background}"
-                                                                BorderBrush="{StaticResource BorderColor}"
-                                                                BorderThickness="0,0,0,1"
-                                                                Padding="{TemplateBinding Padding}">
-                                                            <TextBlock Text="{TemplateBinding Content}"
-                                                                     Foreground="{TemplateBinding Foreground}"
-                                                                     VerticalAlignment="Center"
-                                                                     FontSize="12"/>
-                                                        </Border>
-                                                    </ControlTemplate>
-                                                </Setter.Value>
-                                            </Setter>
-                                            <Style.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter Property="Background" Value="#3E3E42"/>
-                                                </Trigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </ListView.Resources>
+                        <!-- TreeView -->
+                        <TreeView Name="treeView1"
+                                  Margin="0,0,0,10"
+                                  Background="{StaticResource PanelBackground}"
+                                  BorderThickness="1"
+                                  BorderBrush="{StaticResource BorderColor}"
+                                  Padding="5"
+                                  ScrollViewer.VerticalScrollBarVisibility="Visible"
+                                  VirtualizingStackPanel.IsVirtualizing="True"
+                                  VirtualizingStackPanel.VirtualizationMode="Recycling"
+                                  Height="Auto"
+                                  MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Grid}}"
+                                  SelectedItemChanged="TreeView_SelectedItemChanged">
+                            <TreeView.Template>
+                                <ControlTemplate TargetType="{x:Type TreeView}">
+                                    <ScrollViewer CanContentScroll="True" 
+                                                Focusable="False"
+                                                Padding="{TemplateBinding Padding}"
+                                                VerticalScrollBarVisibility="Visible">
+                                        <ItemsPresenter/>
+                                    </ScrollViewer>
+                                </ControlTemplate>
+                            </TreeView.Template>
+                            <TreeView.Resources>
+                                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" 
+                                                Color="#44FFFFFF"/>
+                                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" 
+                                                Color="White"/>
+                                <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" 
+                                                Color="#22FFFFFF"/>
+                                <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" 
+                                                Color="LightGray"/>
+                            </TreeView.Resources>
+                        </TreeView>
+                    </DockPanel>
 
-                                    <ListView.ItemContainerStyle>
-                                        <Style TargetType="ListViewItem">
-                                            <Setter Property="Background" Value="Transparent"/>
-                                            <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                                            <Setter Property="BorderBrush" Value="{StaticResource BorderColor}"/>
-                                            <Setter Property="Margin" Value="0"/>
-                                            <Setter Property="Height" Value="32"/>
-                                            <Setter Property="VerticalAlignment" Value="Bottom"/>
-                                            <Style.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter Property="Background" Value="#3E3E42"/>
-                                                </Trigger>
+                    <!-- Separator -->
+                    <GridSplitter Grid.Column="1" 
+                      Width="14" 
+                      Background="White" 
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Stretch"
+                      ResizeDirection="Columns"
+                      ShowsPreview="True" >
+                        <GridSplitter.Template>
+                            <ControlTemplate TargetType="GridSplitter">
+                                <Border Width="14" 
+                            CornerRadius="2"
+                            Background="{StaticResource AccentColor}" 
+                            BorderBrush="{StaticResource BorderColor}" 
+                            BorderThickness="2"
+                            VerticalAlignment="Stretch">
+                                    <StackPanel Orientation="Vertical" 
+                                    HorizontalAlignment="Center" 
+                                    VerticalAlignment="Center">
+                                        <!-- Dekoratif Noktalar -->
+                                        <Ellipse Width="4" 
+                                 Height="4" 
+                                 Fill="White" 
+                                 Margin="0,2"/>
+                                        <Ellipse Width="4" 
+                                 Height="4" 
+                                 Fill="White" 
+                                 Margin="0,2"/>
+                                        <Ellipse Width="4" 
+                                 Height="4" 
+                                 Fill="White" 
+                                 Margin="0,2"/>
+                                    </StackPanel>
+                                </Border>
+                            </ControlTemplate>
+                        </GridSplitter.Template>
+                    </GridSplitter>
+
+
+                    <!-- Message Details güncellemesi -->
+                    <TabControl x:Name="messageTabControl" Grid.Column="2" 
+                               Background="{StaticResource PanelBackground}"
+                               BorderBrush="{StaticResource BorderColor}"
+                               BorderThickness="1">
+                        <TabControl.Resources>
+                            <Style TargetType="TabItem">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="TabItem">
+                                            <Border x:Name="Border" BorderThickness="1,1,1,0" 
+                                                    BorderBrush="{StaticResource BorderColor}"
+                                                    CornerRadius="4,4,0,0" Margin="2,0,2,0">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <ContentPresenter x:Name="ContentSite"
+                                                                    ContentSource="Header"
+                                                                    Margin="10,2"
+                                                                    VerticalAlignment="Center"/>
+                                                    <Button x:Name="CloseButton" 
+                                                        Grid.Column="1"
+                                                        Content="✕"
+                                                        Width="20" Height="20"
+                                                        Margin="0,0,5,0"
+                                                        BorderThickness="0" Click="CloseTab_Click">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button">
+                                                                <Setter Property="Background" Value="Transparent"/>
+                                                                <Setter Property="Foreground" Value="White"/>
+                                                                <Setter Property="Template">
+                                                                    <Setter.Value>
+                                                                        <ControlTemplate TargetType="Button">
+                                                                            <Border x:Name="border" 
+                                    Background="{TemplateBinding Background}"
+                                    BorderThickness="{TemplateBinding BorderThickness}">
+                                                                                <ContentPresenter HorizontalAlignment="Center" 
+                                                VerticalAlignment="Center"/>
+                                                                            </Border>
+                                                                        </ControlTemplate>
+                                                                    </Setter.Value>
+                                                                </Setter>
+                                                                <Style.Triggers>
+                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                        <Setter Property="Foreground" Value="Red"/>
+                                                                        <Setter Property="Background" Value="Transparent"/>
+                                                                    </Trigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                    </Button>
+
+                                                </Grid>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
                                                 <Trigger Property="IsSelected" Value="True">
-                                                    <Setter Property="Background" Value="#094771"/>
+                                                    <Setter TargetName="Border" Property="Background" Value="{StaticResource ControlBackground}"/>
+                                                    <Setter TargetName="CloseButton" Property="Visibility" Value="Visible"/>
                                                 </Trigger>
                                                 <Trigger Property="IsSelected" Value="False">
-                                                    <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                                    <Setter TargetName="Border" Property="Background" Value="{StaticResource PanelBackground}"/>
                                                 </Trigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </ListView.ItemContainerStyle>
-                                </ListView>
-                            </Border>
-                        </StackPanel>
-                    </ScrollViewer>
-                </TabItem>
-            </TabControl>
+                                                <MultiTrigger>
+                                                    <MultiTrigger.Conditions>
+                                                        <Condition Property="IsMouseOver" Value="True"/>
+                                                        <Condition Property="IsSelected" Value="False"/>
+                                                    </MultiTrigger.Conditions>
+                                                    <Setter TargetName="Border" Property="Background" Value="{StaticResource ControlBackground}"/>
+                                                    <Setter TargetName="CloseButton" Property="Visibility" Value="Visible"/>
+                                                </MultiTrigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Setter Property="Foreground" Value="{StaticResource TextColor}"/>
+                                <Setter Property="Background" Value="{StaticResource PanelBackground}"/>
+                                <Setter Property="HeaderTemplate">
+                                    <Setter.Value>
+                                        <DataTemplate>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding}"
+                                                         Foreground="{StaticResource TextColor}"
+                                                         VerticalAlignment="Center"
+                                                         Margin="5,0"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </TabControl.Resources>
 
+                        <TabItem x:Name="defaultTab" Header="Message Details">
+                            <ScrollViewer HorizontalScrollBarVisibility="Hidden" 
+                                        VerticalScrollBarVisibility="Visible" 
+                                        CanContentScroll="True">
+                                <!-- Mevcut message details içeriği buraya -->
+                                <StackPanel Margin="5">
+                                    <!-- Header Section -->
+                                    <Border Background="{StaticResource ControlBackground}" 
+                                        CornerRadius="4" 
+                                        Padding="10" 
+                                        Margin="0,0,0,10"
+                                        BorderBrush="{StaticResource BorderColor}"
+                                        BorderThickness="1">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="120"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="120"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="28"/>
+                                                <RowDefinition Height="28"/>
+                                                <RowDefinition Height="28"/>
+                                                <RowDefinition Height="28"/>
+                                                <RowDefinition Height="28"/>
+                                            </Grid.RowDefinitions>
+                                            <!-- Header -->
+                                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Header:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Row="0" Grid.Column="1" x:Name="headerText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+
+                                            <!-- Length -->
+                                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Length:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Row="1" Grid.Column="1" x:Name="lengthText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+
+                                            <!-- Sequence -->
+                                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Sequence:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Row="2" Grid.Column="1" x:Name="seqText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+
+                                            <!-- System ID -->
+                                            <TextBlock Grid.Row="3" Grid.Column="0" Text="System ID:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Row="3" Grid.Column="1" x:Name="sysidText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+
+                                            <!-- Component ID -->
+                                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Component ID:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Row="4" Grid.Column="1" x:Name="compidText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+
+                                            <!-- Message ID -->
+                                            <TextBlock Grid.Row="0" Grid.Column="2" Text="Message ID:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Row="0" Grid.Column="3" x:Name="msgidText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+
+                                            <!-- Message Type -->
+                                            <TextBlock Grid.Row="1" Grid.Column="2" Text="Message Type:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Row="1" Grid.Column="3" x:Name="msgTypeText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+
+                                            <!-- Message Type Name -->
+                                            <TextBlock Grid.Row="2" Grid.Column="2" Text="Message Type Name:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Row="2" Grid.Column="3" x:Name="msgTypeNameText" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+
+                                            <!-- CRC16 -->
+                                            <TextBlock Grid.Row="3" Grid.Column="2" Text="CRC16:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Row="3" Grid.Column="3" x:Name="crc16Text" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+
+                                            <!-- MAVLink Version -->
+                                            <TextBlock Grid.Row="4" Grid.Column="2" Text="MAVLink Version:" Foreground="#A0A0A0" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Row="4" Grid.Column="3" x:Name="isMavlink2Text" Foreground="{StaticResource TextColor}" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Fields Section -->
+                                    <TextBlock Text="Message Fields" 
+               FontWeight="SemiBold" 
+               Margin="5,5,5,5" 
+               Foreground="{StaticResource TextColor}"
+               FontSize="13"/>
+
+                                    <Border Background="{StaticResource ControlBackground}" 
+                                            CornerRadius="4" 
+                                            Margin="0,5"
+                                            BorderBrush="{StaticResource BorderColor}"
+                                            BorderThickness="1">
+                                        <ListView x:Name="fieldsListView" 
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                Margin="2"
+                                                SelectionMode="Extended">
+                                            <ListView.View>
+                                                <GridView>
+                                                    <GridViewColumn Header="Field" Width="140">
+                                                        <GridViewColumn.CellTemplate>
+                                                            <DataTemplate>
+                                                                <TextBlock Text="{Binding Field}" 
+                                                                         Foreground="{StaticResource TextColor}"
+                                                                         Padding="0,10,0,0" 
+                                                                         VerticalAlignment="Bottom"/>
+                                                            </DataTemplate>
+                                                        </GridViewColumn.CellTemplate>
+                                                    </GridViewColumn>
+                                                    <GridViewColumn Header="Value" Width="180">
+                                                        <GridViewColumn.CellTemplate>
+                                                            <DataTemplate>
+                                                                <TextBlock Text="{Binding Value}" 
+                                                                         Foreground="{StaticResource TextColor}"
+                                                                         Padding="0,10,0,0"
+                                                                         TextWrapping="Wrap" 
+                                                                         VerticalAlignment="Bottom"/>
+                                                            </DataTemplate>
+                                                        </GridViewColumn.CellTemplate>
+                                                    </GridViewColumn>
+                                                    <GridViewColumn Header="Type" Width="120">
+                                                        <GridViewColumn.CellTemplate>
+                                                            <DataTemplate>
+                                                                <TextBlock Text="{Binding Type}" 
+                                                                         Foreground="#A0A0A0"
+                                                                         Padding="0,10,0,0" 
+                                                                         VerticalAlignment="Bottom"/>
+                                                            </DataTemplate>
+                                                        </GridViewColumn.CellTemplate>
+                                                    </GridViewColumn>
+                                                </GridView>
+                                            </ListView.View>
+
+                                            <ListView.Resources>
+                                                <!-- GridViewColumnHeader Style -->
+                                                <Style TargetType="GridViewColumnHeader" >
+                                                    <Setter Property="Background" Value="Transparent"/>
+                                                    <Setter Property="Foreground" Value="#A0A0A0"/>
+                                                    <Setter Property="Height" Value="32"/>
+                                                    <Setter Property="Padding" Value="8,0"/>
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="GridViewColumnHeader">
+                                                                <Border Background="{TemplateBinding Background}"
+                                                                        BorderBrush="{StaticResource BorderColor}"
+                                                                        BorderThickness="0,0,0,1"
+                                                                        Padding="{TemplateBinding Padding}">
+                                                                    <TextBlock Text="{TemplateBinding Content}"
+                                                                             Foreground="{TemplateBinding Foreground}"
+                                                                             VerticalAlignment="Center"
+                                                                             FontSize="12"/>
+                                                                </Border>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                    <Style.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter Property="Background" Value="#3E3E42"/>
+                                                        </Trigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ListView.Resources>
+
+                                            <ListView.ItemContainerStyle>
+                                                <Style TargetType="ListViewItem">
+                                                    <Setter Property="Background" Value="Transparent"/>
+                                                    <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                                    <Setter Property="BorderBrush" Value="{StaticResource BorderColor}"/>
+                                                    <Setter Property="Margin" Value="0"/>
+                                                    <Setter Property="Height" Value="32"/>
+                                                    <Setter Property="VerticalAlignment" Value="Bottom"/>
+                                                    <Style.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter Property="Background" Value="#3E3E42"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsSelected" Value="True">
+                                                            <Setter Property="Background" Value="#094771"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsSelected" Value="False">
+                                                            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                                        </Trigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ListView.ItemContainerStyle>
+                                        </ListView>
+                                    </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+                    </TabControl>
+
+                </Grid>
+
+                <!-- Status bar güncellemesi -->
+                <StatusBar Grid.Row="2" x:Name="statusBar"
+                          Background="{StaticResource PanelBackground}"
+                          Foreground="{StaticResource TextColor}">
+                    <StatusBarItem Padding="10,5">
+                        <TextBlock x:Name="statusConnectionText" Text="Disconnected"/>
+                    </StatusBarItem>
+                    <Separator Background="{StaticResource BorderColor}"/>
+                    <StatusBarItem Padding="10,5">
+                        <TextBlock x:Name="statusMessagesText" Text="Messages: 0"/>
+                    </StatusBarItem>
+                    <Separator Background="{StaticResource BorderColor}"/>
+                    <StatusBarItem Padding="10,5">
+                        <TextBlock x:Name="statusRateText" Text="Rate: 0 msg/s"/>
+                    </StatusBarItem>
+                    <StatusBarItem Padding="10,5">
+                        <Button x:Name="_graphButton" Width="170" Height="40" 
+                                Style="{StaticResource ModernButton}" 
+                                Content="Graph Selected Fields"/>
+                    </StatusBarItem>
+                </StatusBar>
+            </Grid>
         </Grid>
-
-        <!-- Status bar güncellemesi -->
-        <StatusBar Grid.Row="2" x:Name="statusBar"
-                  Background="{StaticResource PanelBackground}"
-                  Foreground="{StaticResource TextColor}">
-            <StatusBarItem Padding="10,5">
-                <TextBlock x:Name="statusConnectionText" Text="Disconnected"/>
-            </StatusBarItem>
-            <Separator Background="{StaticResource BorderColor}"/>
-            <StatusBarItem Padding="10,5">
-                <TextBlock x:Name="statusMessagesText" Text="Messages: 0"/>
-            </StatusBarItem>
-            <Separator Background="{StaticResource BorderColor}"/>
-            <StatusBarItem Padding="10,5">
-                <TextBlock x:Name="statusRateText" Text="Rate: 0 msg/s"/>
-            </StatusBarItem>
-            <StatusBarItem Padding="10,5">
-                <Button x:Name="_graphButton" Width="170" Height="40" 
-                        Style="{StaticResource ModernButton}" 
-                        Content="Graph Selected Fields"/>
-            </StatusBarItem>
-        </StatusBar>
-    </Grid>
+    </Border>
 </Window>

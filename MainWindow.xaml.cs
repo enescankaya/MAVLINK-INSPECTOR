@@ -1477,215 +1477,6 @@ public partial class MainWindow : Window
         messageTabControl.Items.Add(newTab);
         newTab.IsSelected = true;
     }
-
-    private StackPanel CloneMessageDetailsPanel(MAVLink.MAVLinkMessage message)
-    {
-        var newPanel = new StackPanel { Margin = new Thickness(5) };
-
-        // Header Section
-        var headerBorder = new Border
-        {
-            Background = FindResource("ControlBackground") as Brush,
-            CornerRadius = new CornerRadius(4),
-            Padding = new Thickness(10),
-            Margin = new Thickness(0, 0, 0, 10),
-            BorderBrush = FindResource("BorderColor") as Brush,
-            BorderThickness = new Thickness(1)
-        };
-
-        var headerGrid = new Grid();
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        for (int i = 0; i < 5; i++)
-        {
-            headerGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(28) });
-        }
-
-        // Add header fields (similar to main view)
-        AddHeaderField(headerGrid, 0, 0, "Header:", message.header.ToString());
-        AddHeaderField(headerGrid, 1, 0, "Length:", message.Length.ToString());
-        AddHeaderField(headerGrid, 2, 0, "Sequence:", message.seq.ToString());
-        AddHeaderField(headerGrid, 3, 0, "System ID:", message.sysid.ToString());
-        AddHeaderField(headerGrid, 4, 0, "Component ID:", message.compid.ToString());
-        AddHeaderField(headerGrid, 0, 2, "Message ID:", message.msgid.ToString());
-        AddHeaderField(headerGrid, 1, 2, "Message Type:", message.GetType().Name);
-        AddHeaderField(headerGrid, 2, 2, "Message Type Name:", message.msgtypename);
-        AddHeaderField(headerGrid, 3, 2, "CRC16:", message.crc16.ToString("X4"));
-        AddHeaderField(headerGrid, 4, 2, "MAVLink Version:", message.ismavlink2 ? "Mavlink V2" : "Mavlink V1");
-
-        headerBorder.Child = headerGrid;
-        newPanel.Children.Add(headerBorder);
-
-        // Fields Section Title
-        var fieldsTitle = new TextBlock
-        {
-            Text = "Message Fields",
-            FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(5),
-            Foreground = FindResource("TextColor") as Brush,
-            FontSize = 13
-        };
-        newPanel.Children.Add(fieldsTitle);
-
-        // Fields ListView
-        var newListView = new ListView
-        {
-            Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0),
-            Margin = new Thickness(2),
-            SelectionMode = SelectionMode.Extended // Çoklu seçime izin ver
-        };
-
-        // Create and apply the GridView with styled columns
-        var gridView = new GridView();
-
-        // Field Column
-        var fieldColumn = new GridViewColumn
-        {
-            Header = "Field",
-            Width = 140,
-            CellTemplate = new DataTemplate
-            {
-                VisualTree = new FrameworkElementFactory(typeof(TextBlock)).With(tb =>
-                {
-                    tb.SetValue(TextBlock.TextProperty, new Binding("Field"));
-                    tb.SetValue(TextBlock.ForegroundProperty, FindResource("TextColor") as Brush);
-                    tb.SetValue(TextBlock.PaddingProperty, new Thickness(0, 10, 0, 0));
-                    tb.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Bottom);
-                })
-            }
-        };
-
-        // Value Column
-        var valueColumn = new GridViewColumn
-        {
-            Header = "Value",
-            Width = 180,
-            CellTemplate = new DataTemplate
-            {
-                VisualTree = new FrameworkElementFactory(typeof(TextBlock)).With(tb =>
-                {
-                    tb.SetValue(TextBlock.TextProperty, new Binding("Value"));
-                    tb.SetValue(TextBlock.ForegroundProperty, FindResource("TextColor") as Brush);
-                    tb.SetValue(TextBlock.PaddingProperty, new Thickness(0, 10, 0, 0));
-                    tb.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap);
-                    tb.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Bottom);
-                })
-            }
-        };
-
-        // Type Column
-        var typeColumn = new GridViewColumn
-        {
-            Header = "Type",
-            Width = 120,
-            CellTemplate = new DataTemplate
-            {
-                VisualTree = new FrameworkElementFactory(typeof(TextBlock)).With(tb =>
-                {
-                    tb.SetValue(TextBlock.TextProperty, new Binding("Type"));
-                    tb.SetValue(TextBlock.ForegroundProperty, new SolidColorBrush(Color.FromRgb(160, 160, 160)));
-                    tb.SetValue(TextBlock.PaddingProperty, new Thickness(0, 10, 0, 0));
-                    tb.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Bottom);
-                })
-            }
-        };
-
-        // Apply header style to columns
-        var headerStyle = new Style(typeof(GridViewColumnHeader));
-        headerStyle.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
-        headerStyle.Setters.Add(new Setter(Control.ForegroundProperty, new SolidColorBrush(Color.FromRgb(160, 160, 160))));
-        headerStyle.Setters.Add(new Setter(FrameworkElement.HeightProperty, 32d));
-        headerStyle.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(8, 0, 0, 0)));
-        headerStyle.Setters.Add(new Setter(Control.TemplateProperty, CreateHeaderTemplate()));
-
-        fieldColumn.HeaderContainerStyle = headerStyle;
-        valueColumn.HeaderContainerStyle = headerStyle;
-        typeColumn.HeaderContainerStyle = headerStyle;
-
-        // Add columns to GridView
-        gridView.Columns.Add(fieldColumn);
-        gridView.Columns.Add(valueColumn);
-        gridView.Columns.Add(typeColumn);
-        newListView.View = gridView;
-
-        // Apply item container style
-        var itemContainerStyle = new Style(typeof(ListViewItem));
-        itemContainerStyle.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
-        itemContainerStyle.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(0, 0, 0, 1)));
-        itemContainerStyle.Setters.Add(new Setter(Control.BorderBrushProperty, FindResource("BorderColor")));
-        itemContainerStyle.Setters.Add(new Setter(FrameworkElement.MarginProperty, new Thickness(0)));
-        itemContainerStyle.Setters.Add(new Setter(FrameworkElement.HeightProperty, 32d));
-        itemContainerStyle.Setters.Add(new Setter(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Bottom));
-
-        // Add triggers for mouse over and selection
-        var mouseOverTrigger = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
-        mouseOverTrigger.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromRgb(62, 62, 66))));
-        itemContainerStyle.Triggers.Add(mouseOverTrigger);
-
-        var selectedTrigger = new Trigger { Property = ListBoxItem.IsSelectedProperty, Value = true };
-        selectedTrigger.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromRgb(9, 71, 113))));
-        itemContainerStyle.Triggers.Add(selectedTrigger);
-
-        newListView.ItemContainerStyle = itemContainerStyle;
-
-        // Store the message reference in ListView's Tag
-        newListView.Tag = message;
-
-        // Add SelectionChanged handler
-        newListView.SelectionChanged += (s, e) =>
-        {
-            foreach (dynamic item in e.AddedItems)
-            {
-                if (IsNumericType(item.Type.ToString()))
-                {
-                    _selectedFieldsForGraph.Add((
-                        message.sysid,
-                        message.compid,
-                        message.msgid,
-                        item.Field.ToString()
-                    ));
-                }
-            }
-
-            foreach (dynamic item in e.RemovedItems)
-            {
-                _selectedFieldsForGraph.Remove((
-                    message.sysid,
-                    message.compid,
-                    message.msgid,
-                    item.Field.ToString()
-                ));
-            }
-
-            if (_graphButton != null)
-            {
-                _graphButton.IsEnabled = _selectedFieldsForGraph.Count > 0;
-            }
-        };
-
-        // Add ListView to Border with same style as main view
-        var listViewBorder = new Border
-        {
-            Background = FindResource("ControlBackground") as Brush,
-            CornerRadius = new CornerRadius(4),
-            Margin = new Thickness(0, 5, 0, 0),
-            BorderBrush = FindResource("BorderColor") as Brush,
-            BorderThickness = new Thickness(1),
-            Child = newListView
-        };
-
-        newPanel.Children.Add(listViewBorder);
-        newPanel.Tag = newListView;
-
-        UpdateListViewFields(newListView, message);
-
-        return newPanel;
-    }
-
     private void AddHeaderField(Grid grid, int row, int column, string label, string value)
     {
         var labelBlock = new TextBlock
@@ -2976,7 +2767,7 @@ public partial class MainWindow : Window
     /// Processes batch updates for the UI components
     /// </summary>
     /// <param name="sender">The event sender</param>
-    /// <param name="e">The event arguments</param>
+    /// <param="e">The event arguments</param>
     private void ProcessPendingUpdates(object sender, EventArgs e)
     {
         int processed = 0;
@@ -2985,6 +2776,45 @@ public partial class MainWindow : Window
             var action = _pendingUpdates.Dequeue();
             action();
             processed++;
+        }
+    }
+
+    private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 2)
+        {
+            ToggleMaximize();
+        }
+        else
+        {
+            DragMove();
+        }
+    }
+
+    private void MinimizeButton_Click(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState.Minimized;
+    }
+
+    private void MaximizeButton_Click(object sender, RoutedEventArgs e)
+    {
+        ToggleMaximize();
+    }
+
+    private void CloseButton_Click(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
+
+    private void ToggleMaximize()
+    {
+        if (WindowState == WindowState.Maximized)
+        {
+            WindowState = WindowState.Normal;
+        }
+        else
+        {
+            WindowState = WindowState.Maximized;
         }
     }
 
@@ -2999,7 +2829,7 @@ public static class FrameworkElementFactoryExtensions
     /// <summary>
     /// Configures a FrameworkElementFactory instance using the provided action
     /// </summary>
-    /// <param name="factory">The factory to configure</param>
+    /// <param="factory">The factory to configure</param>
     /// <param="configure">The configuration action to apply</param>
     /// <returns>The configured factory instance</returns>
     public static FrameworkElementFactory With(this FrameworkElementFactory factory, Action<FrameworkElementFactory> configure)

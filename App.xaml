@@ -930,5 +930,121 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+
+        <!-- Modern Window Style -->
+        <Style x:Key="ModernWindow" TargetType="Window">
+            <Setter Property="WindowStyle" Value="None"/>
+            <Setter Property="AllowsTransparency" Value="True"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Window">
+                        <Border x:Name="WindowBorder" 
+                                Background="{StaticResource WindowBackground}"
+                                BorderBrush="{StaticResource BorderColor}"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="10" 
+                                                ShadowDepth="0" 
+                                                Color="#40000000"/>
+                            </Border.Effect>
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="32"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Title Bar -->
+                                <Border Grid.Row="0" 
+                                        Background="{StaticResource PanelBackground}"
+                                        CornerRadius="8,8,0,0"
+                                        MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                                    <Grid Margin="8,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Window Icon -->
+                                        <Image Grid.Column="0" 
+                                               Source="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=Icon}"
+                                               Width="16" Height="16"
+                                               Margin="4,0"/>
+
+                                        <!-- Window Title -->
+                                        <TextBlock Grid.Column="1"
+                                                 Text="{TemplateBinding Title}"
+                                                 Foreground="{StaticResource TextColor}"
+                                                 VerticalAlignment="Center"
+                                                 Margin="8,0"/>
+
+                                        <!-- Window Buttons -->
+                                        <StackPanel Grid.Column="2" 
+                                                  Orientation="Horizontal"
+                                                  HorizontalAlignment="Right">
+                                            <!-- Minimize Button -->
+                                            <Button x:Name="MinimizeButton"
+                                                    Width="32" Height="32"
+                                                    Style="{StaticResource WindowControlButton}"
+                                                    Content="&#xE921;"
+                                                    Click="MinimizeButton_Click"/>
+                                            
+                                            <!-- Maximize/Restore Button -->
+                                            <Button x:Name="MaximizeButton"
+                                                    Width="32" Height="32"
+                                                    Style="{StaticResource WindowControlButton}"
+                                                    Content="&#xE922;"
+                                                    Click="MaximizeButton_Click"/>
+                                            
+                                            <!-- Close Button -->
+                                            <Button x:Name="CloseButton"
+                                                    Width="32" Height="32"
+                                                    Style="{StaticResource WindowControlButton}"
+                                                    Content="&#xE8BB;"
+                                                    Click="CloseButton_Click"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Window Content -->
+                                <ContentPresenter Grid.Row="1"/>
+                            </Grid>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Window Control Button Style -->
+        <Style x:Key="WindowControlButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Foreground" Value="{StaticResource TextColor}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                            VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{StaticResource ControlBackground}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="{StaticResource AccentColor}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Application.Resources>
 </Application>
