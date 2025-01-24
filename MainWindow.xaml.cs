@@ -88,10 +88,29 @@ public partial class MainWindow : Window
     /// </summary>
     private readonly DispatcherTimer _cleanupTimer = new();
 
+    /// <summary>
+    /// Inspector for processing MAVLink packets
+    /// </summary>
     private readonly PacketInspector<MAVLink.MAVLinkMessage> _mavInspector = new();
+
+    /// <summary>
+    /// Timer for periodic updates
+    /// </summary>
     private readonly DispatcherTimer _timer = new();
+
+    /// <summary>
+    /// Random number generator for various operations
+    /// </summary>
     private readonly Random _random = new();
+
+    /// <summary>
+    /// Manager for handling MAVLink connections
+    /// </summary>
     private ConnectionManager _connectionManager = new();
+
+    /// <summary>
+    /// Total number of messages processed
+    /// </summary>
     private int _totalMessages;
     private DateTime _lastRateUpdate = DateTime.Now;
     private int _messagesSinceLastUpdate;
@@ -893,10 +912,22 @@ public partial class MainWindow : Window
                         var value = field.GetValue(message.data);
                         var typeName = field.FieldType.ToString().Replace("System.", ""); // System. kısmını kaldır
 
+                        // Array tipinde değerleri işle
+                        string displayValue;
+                        if (value != null && field.FieldType.IsArray)
+                        {
+                            var array = value as Array;
+                            displayValue = string.Join(", ", array.Cast<object>().Select(x => x?.ToString() ?? "null"));
+                        }
+                        else
+                        {
+                            displayValue = value?.ToString() ?? "null";
+                        }
+
                         var item = new
                         {
                             Field = field.Name,
-                            Value = value,
+                            Value = displayValue,
                             Type = typeName
                         };
 
@@ -2960,8 +2991,17 @@ public partial class MainWindow : Window
 } // MainWindow class ends here
 
 // Helper extension method for cleaner FrameworkElementFactory configuration
+/// <summary>
+/// Helper extension class for configuring FrameworkElementFactory instances
+/// </summary>
 public static class FrameworkElementFactoryExtensions
 {
+    /// <summary>
+    /// Configures a FrameworkElementFactory instance using the provided action
+    /// </summary>
+    /// <param name="factory">The factory to configure</param>
+    /// <param="configure">The configuration action to apply</param>
+    /// <returns>The configured factory instance</returns>
     public static FrameworkElementFactory With(this FrameworkElementFactory factory, Action<FrameworkElementFactory> configure)
     {
         configure(factory);
