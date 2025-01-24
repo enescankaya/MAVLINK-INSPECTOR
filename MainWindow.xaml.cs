@@ -20,6 +20,9 @@ using System.Reflection;
 
 namespace MavlinkInspector;
 
+/// <summary>
+/// Specifies the sorting order for messages in the TreeView
+/// </summary>
 public enum SortOrder
 {
     Name,
@@ -27,25 +30,62 @@ public enum SortOrder
     Bps
 }
 
+/// <summary>
+/// Represents a range of message rates with associated priority
+/// </summary>
 public class MessageRateRange
 {
+    /// <summary>
+    /// Gets or sets the minimum value of the range
+    /// </summary>
     public double Min { get; set; }
+
+    /// <summary>
+    /// Gets or sets the maximum value of the range
+    /// </summary>
     public double Max { get; set; }
+
+    /// <summary>
+    /// Gets or sets the priority of this range
+    /// </summary>
     public int Priority { get; set; }
 
+    /// <summary>
+    /// Determines if a given value falls within this range
+    /// </summary>
+    /// <param name="value">The value to check</param>
+    /// <returns>True if the value is within range, false otherwise</returns>
     public bool IsInRange(double value) => value >= Min && value < Max;
 }
 
 public partial class MainWindow : Window
 {
     // Sabit değerler için const tanımlamaları
+    /// <summary>
+    /// Maximum number of colors to cache for message visualization
+    /// </summary>
     private const int MAX_CACHED_COLORS = 1000;
+    /// <summary>
+    /// Maximum size of the message queue for processing
+    /// </summary>
     private const int MAX_MESSAGE_QUEUE_SIZE = 5000;
+    /// <summary>
+    /// Interval in milliseconds between cleanup operations
+    /// </summary>
     private const int CLEANUP_INTERVAL_MS = 30000; // 30 saniye
 
     // Mevcut field tanımlamaları yerine daha optimize versiyonları
+    /// <summary>
+    /// Cache of colors used for message visualization
+    /// </summary>
     private readonly ConcurrentDictionary<uint, Color> _messageColors = new(Environment.ProcessorCount, MAX_CACHED_COLORS);
+    /// <summary>
+    /// Queue for storing incoming MAVLink messages
+    /// </summary>
     private readonly ConcurrentQueue<MAVLink.MAVLinkMessage> _messageQueue = new();
+    /// <summary>
+    /// Timer for periodic cleanup operations
+    /// </summary>
     private readonly DispatcherTimer _cleanupTimer = new();
 
     private readonly PacketInspector<MAVLink.MAVLinkMessage> _mavInspector = new();
@@ -104,10 +144,22 @@ public partial class MainWindow : Window
         new MessageRateRange { Min = 0, Max = 0.1, Priority = 7 }
     };
 
+    /// <summary>
+    /// Stores information about message updates
+    /// </summary>
     private class MessageUpdateInfo
     {
+        /// <summary>
+        /// Gets or sets the timestamp of the last update
+        /// </summary>
         public DateTime LastUpdate { get; set; }
+        /// <summary>
+        /// Gets or sets the last recorded message rate
+        /// </summary>
         public double LastRate { get; set; }
+        /// <summary>
+        /// Gets or sets the last message header
+        /// </summary>
         public string LastHeader { get; set; } = string.Empty;
     }
 
@@ -116,13 +168,34 @@ public partial class MainWindow : Window
     // Yeni field ekleyin
     private ObservableCollection<SelectedFieldInfo> selectedFieldsPanelItems;
 
+    /// <summary>
+    /// Represents selected field information for visualization
+    /// </summary>
     public class SelectedFieldInfo
     {
+        /// <summary>
+        /// Gets or sets the system ID
+        /// </summary>
         public byte SysId { get; set; }
+        /// <summary>
+        /// Gets or sets the component ID
+        /// </summary>
         public byte CompId { get; set; }
+        /// <summary>
+        /// Gets or sets the message ID
+        /// </summary>
         public uint MsgId { get; set; }
+        /// <summary>
+        /// Gets or sets the field name
+        /// </summary>
         public string Field { get; set; }
+        /// <summary>
+        /// Gets or sets the display text for the field
+        /// </summary>
         public string DisplayText { get; set; }
+        /// <summary>
+        /// Gets or sets the source tab containing this field
+        /// </summary>
         public TabItem SourceTab { get; set; } // Yeni özellik ekle
     }
 
@@ -647,10 +720,10 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Generates a color based on the message rate.
+    /// Generates a color for message visualization based on message rate
     /// </summary>
-    /// <param="rate">The message rate.</param>
-    /// <returns>The generated color.</returns>
+    /// <param name="rate">The message rate in Hz</param>
+    /// <returns>A Color object representing the visualization color</returns>
     private Color GenerateMessageColor(double rate)
     {
         try
@@ -2332,6 +2405,9 @@ public partial class MainWindow : Window
         SortTreeView();
     }
 
+    /// <summary>
+    /// Updates the TreeView with messages matching the current sort order
+    /// </summary>
     private void SortTreeView()
     {
         // Mevcut seçimi ve ağaç durumunu kaydet
@@ -2865,6 +2941,11 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Processes batch updates for the UI components
+    /// </summary>
+    /// <param name="sender">The event sender</param>
+    /// <param name="e">The event arguments</param>
     private void ProcessPendingUpdates(object sender, EventArgs e)
     {
         int processed = 0;
