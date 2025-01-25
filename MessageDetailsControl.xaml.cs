@@ -241,7 +241,7 @@ public partial class MessageDetailsControl : UserControl
                 var item = new
                 {
                     Field = member.Name,
-                    Value = value?.ToString() ?? "null",
+                    Value = FormatFieldValue(value, memberType),
                     Type = typeName,
                     IsProperty = member is PropertyInfo
                 };
@@ -256,7 +256,26 @@ public partial class MessageDetailsControl : UserControl
             }
         }
     }
+    private string FormatFieldValue(object? value, Type memberType)
+    {
+        if (value == null) return "null";
 
+        if (memberType.IsArray)
+        {
+            var array = value as Array;
+            if (array == null) return "null";
+
+            // Create comma-separated list of array elements
+            var elements = new List<string>();
+            for (int i = 0; i < array.Length; i++)
+            {
+                elements.Add(array.GetValue(i)?.ToString() ?? "null");
+            }
+            return $"[{string.Join(", ", elements)}]";
+        }
+
+        return value.ToString() ?? "null";
+    }
     public event EventHandler<IEnumerable<(byte sysid, byte compid, uint msgid, string field)>> SelectionChangedWithFields;
 
     public void UpdateSelections()
